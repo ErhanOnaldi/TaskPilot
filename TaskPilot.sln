@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskPilot.Application", "Ta
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskPilot.Infrastructure", "TaskPilot.Infrastructure\TaskPilot.Infrastructure.csproj", "{9F1A1E38-CE61-4EEF-BC53-0E2136052CF6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskPilot.Persistence", "TaskPilot.Persistence\TaskPilot.Persistence.csproj", "{4C119D93-B44C-4149-B010-D2EFCCB3CB8F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,6 +22,7 @@ Global
 		{58F461FA-AFA6-4A64-86D4-D836EC74EDAE} = {67304BDC-CC7D-47DA-92B4-E2E8BBEF49B4}
 		{F1BA9783-6FD4-4414-90A3-045D0F059B77} = {67304BDC-CC7D-47DA-92B4-E2E8BBEF49B4}
 		{9F1A1E38-CE61-4EEF-BC53-0E2136052CF6} = {67304BDC-CC7D-47DA-92B4-E2E8BBEF49B4}
+		{4C119D93-B44C-4149-B010-D2EFCCB3CB8F} = {67304BDC-CC7D-47DA-92B4-E2E8BBEF49B4}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{62F3EE2A-0E91-4537-9C62-9C5CC03F1C83}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -38,5 +41,9 @@ Global
 		{9F1A1E38-CE61-4EEF-BC53-0E2136052CF6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9F1A1E38-CE61-4EEF-BC53-0E2136052CF6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9F1A1E38-CE61-4EEF-BC53-0E2136052CF6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4C119D93-B44C-4149-B010-D2EFCCB3CB8F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C119D93-B44C-4149-B010-D2EFCCB3CB8F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C119D93-B44C-4149-B010-D2EFCCB3CB8F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C119D93-B44C-4149-B010-D2EFCCB3CB8F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
