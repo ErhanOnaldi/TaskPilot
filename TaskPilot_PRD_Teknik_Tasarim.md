@@ -378,11 +378,7 @@ Landing page performansını iyileştir.
 {
   "priority": "High",
   "labels": ["frontend", "performance"],
-  "subtasks": [
-    "Run Lighthouse audit",
-    "Optimize images",
-    "Lazy load images"
-  ],
+  "subtasks": ["Run Lighthouse audit", "Optimize images", "Lazy load images"],
   "suggestedDueDate": "2026-07-01"
 }
 ```
@@ -1250,25 +1246,25 @@ Cache-aside pattern kullanılacak.
 
 ## Workspace Seviyesi
 
-| İşlem | Owner | Manager | Member | Guest |
-|---|---:|---:|---:|---:|
-| Workspace görüntüleme | Evet | Evet | Evet | Evet |
-| Workspace güncelleme | Evet | Hayır | Hayır | Hayır |
-| Üye davet etme | Evet | Evet | Hayır | Hayır |
-| Rol değiştirme | Evet | Hayır | Hayır | Hayır |
-| Proje oluşturma | Evet | Evet | Hayır | Hayır |
+| İşlem                 | Owner | Manager | Member | Guest |
+| --------------------- | ----: | ------: | -----: | ----: |
+| Workspace görüntüleme |  Evet |    Evet |   Evet |  Evet |
+| Workspace güncelleme  |  Evet |   Hayır |  Hayır | Hayır |
+| Üye davet etme        |  Evet |    Evet |  Hayır | Hayır |
+| Rol değiştirme        |  Evet |   Hayır |  Hayır | Hayır |
+| Proje oluşturma       |  Evet |    Evet |  Hayır | Hayır |
 
 ## Project Seviyesi
 
-| İşlem | Project Manager | Team Member | Guest |
-|---|---:|---:|---:|
-| Proje görüntüleme | Evet | Evet | Evet |
-| Proje güncelleme | Evet | Hayır | Hayır |
-| Görev oluşturma | Evet | Evet | Hayır |
-| Görev atama | Evet | Hayır | Hayır |
-| Görev status değiştirme | Evet | Kendi görevi | Hayır |
-| Yorum yazma | Evet | Evet | Evet |
-| Label yönetme | Evet | Hayır | Hayır |
+| İşlem                   | Project Manager |  Team Member | Guest |
+| ----------------------- | --------------: | -----------: | ----: |
+| Proje görüntüleme       |            Evet |         Evet |  Evet |
+| Proje güncelleme        |            Evet |        Hayır | Hayır |
+| Görev oluşturma         |            Evet |         Evet | Hayır |
+| Görev atama             |            Evet |        Hayır | Hayır |
+| Görev status değiştirme |            Evet | Kendi görevi | Hayır |
+| Yorum yazma             |            Evet |         Evet |  Evet |
+| Label yönetme           |            Evet |        Hayır | Hayır |
 
 ---
 
