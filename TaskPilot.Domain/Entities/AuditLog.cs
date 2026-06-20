@@ -3,7 +3,7 @@ namespace TaskPilot.Domain.Entities;
 public class AuditLog
 {
     public int Id { get; set; }
-    public int UserId { get; set; }
+    public int? UserId { get; set; }
     public string EntityName { get; set; } = null!;
     public int EntityId { get; set; }
     public string Action { get; set; } = null!;
