@@ -10,6 +10,8 @@ public static class InfrastructureExtensions
     {
         services.AddScoped<IPasswordHasher, PasswordHasherService>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddScoped<IRefreshTokenGenerator, RefreshTokenGenerator>();
+        services.AddScoped<IRefreshTokenHasher, RefreshTokenHasher>();
 
         return services;
     }

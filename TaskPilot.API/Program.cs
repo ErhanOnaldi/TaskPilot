@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using TaskPilot.API.Extensions;
 using TaskPilot.Application.Features.Auth.Services;
-using TaskPilot.Domain.Opitons;
+using TaskPilot.Domain.Options;
 using TaskPilot.Infrastructure.Extensions;
 using TaskPilot.Persistence.Extensions;
 

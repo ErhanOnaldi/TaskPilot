@@ -14,4 +14,5 @@ public class User : AuditEntity
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
     public ICollection<AiSuggestion> AiSuggestions { get; set; } = new List<AiSuggestion>();
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

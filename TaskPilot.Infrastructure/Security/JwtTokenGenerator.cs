@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using TaskPilot.Application.Interfaces.Security;
 using TaskPilot.Domain.Entities;
-using TaskPilot.Domain.Opitons;
+using TaskPilot.Domain.Options;
 
 namespace TaskPilot.Infrastructure.Security;
 

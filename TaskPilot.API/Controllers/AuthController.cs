@@ -37,4 +37,19 @@ public class AuthController(IAuthService authService): CustomBaseController
         var result = await authService.GetMeAsync(userId, cancellationToken);
         return CreateActionResult(result);
     }
+
+    [HttpPost("refresh-token")]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+    {
+        var result = await authService.RefreshTokenAsync(request, cancellationToken);
+        return CreateActionResult(result);
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+    {
+        var result = await authService.LogoutAsync(request, cancellationToken);
+        return CreateActionResult(result);
+    }
+    
 }
