@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TaskPilot.Application.Interfaces.Persistence;
+using TaskPilot.Application.Interfaces.Persistence.User;
+using TaskPilot.Persistence.EntityRepositories;
 
 namespace TaskPilot.Persistence.Extensions;
 
@@ -21,6 +23,7 @@ public static class PersistenceExtensions
         });
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IUserRepository, UserRepository>();
         return services;
     }
     

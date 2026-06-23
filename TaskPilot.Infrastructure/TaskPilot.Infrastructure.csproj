@@ -10,4 +10,9 @@
       <ProjectReference Include="..\TaskPilot.Application\TaskPilot.Application.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.9" />
+      <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.1" />
+    </ItemGroup>
+
 </Project>
