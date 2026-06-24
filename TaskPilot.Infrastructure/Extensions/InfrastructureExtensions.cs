@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Security;
 using TaskPilot.Infrastructure.Security;
 
@@ -12,7 +13,9 @@ public static class InfrastructureExtensions
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IRefreshTokenGenerator, RefreshTokenGenerator>();
         services.AddScoped<IRefreshTokenHasher, RefreshTokenHasher>();
-
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
+        
         return services;
     }
 }

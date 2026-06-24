@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Auth;
 using TaskPilot.Application.Interfaces.Persistence.User;
+using TaskPilot.Application.Interfaces.Persistence.Workspace;
 using TaskPilot.Persistence.EntityRepositories;
 
 namespace TaskPilot.Persistence.Extensions;
@@ -26,6 +27,7 @@ public static class PersistenceExtensions
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
         return services;
     }
     
