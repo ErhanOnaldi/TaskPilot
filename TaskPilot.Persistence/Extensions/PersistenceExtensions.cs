@@ -28,6 +28,7 @@ public static class PersistenceExtensions
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
+        services.AddScoped<IWorkspaceMemberRepository, WorkspaceMemberRepository>();
         return services;
     }
     
