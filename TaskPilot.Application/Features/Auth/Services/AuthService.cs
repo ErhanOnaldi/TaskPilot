@@ -1,4 +1,5 @@
 using System.Net;
+using FluentValidation;
 using Microsoft.Extensions.Options;
 using TaskPilot.Application.Features.Auth.Dtos;
 using TaskPilot.Application.Interfaces.Persistence;
@@ -18,10 +19,21 @@ public class AuthService(
     IJwtTokenGenerator jwtTokenGenerator,
     IRefreshTokenGenerator refreshTokenGenerator,
     IRefreshTokenHasher refreshTokenHasher,
+    IValidator<RegisterRequest> registerValidator,
+    IValidator<LoginRequest> loginValidator,
+    IValidator<RefreshTokenRequest> refreshTokenValidator,
     IOptions<JwtOptions> jwtOptions) : IAuthService
 {
     public async Task<ServiceResult<AuthResponse>> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
     {
+        var validationResult = await registerValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return ServiceResult<AuthResponse>.Fail(
+                validationResult.Errors.Select(x => x.ErrorMessage).ToList(),
+                HttpStatusCode.BadRequest);
+        }
+
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
         var isExist = await repository.GetByEmailAsync(normalizedEmail, cancellationToken);
         if (isExist is not null)
@@ -49,6 +61,14 @@ public class AuthService(
 
     public async Task<ServiceResult<AuthResponse>> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
     {
+        var validationResult = await loginValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return ServiceResult<AuthResponse>.Fail(
+                validationResult.Errors.Select(x => x.ErrorMessage).ToList(),
+                HttpStatusCode.BadRequest);
+        }
+
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
         var user = await repository.GetByEmailAsync(normalizedEmail, cancellationToken);
         if (user == null)
@@ -81,6 +101,14 @@ public class AuthService(
 
     public async Task<ServiceResult<AuthResponse>> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken)
     {
+        var validationResult = await refreshTokenValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return ServiceResult<AuthResponse>.Fail(
+                validationResult.Errors.Select(x => x.ErrorMessage).ToList(),
+                HttpStatusCode.BadRequest);
+        }
+
         var tokenHash = refreshTokenHasher.Hash(request.RefreshToken);
         var existingToken = await refreshTokenRepository.GetByTokenHashAsync(tokenHash, cancellationToken);
         if (existingToken is null)
@@ -123,6 +151,14 @@ public class AuthService(
 
     public async Task<ServiceResult> LogoutAsync(RefreshTokenRequest request, CancellationToken cancellationToken)
     {
+        var validationResult = await refreshTokenValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return ServiceResult.Fail(
+                validationResult.Errors.Select(x => x.ErrorMessage).ToList(),
+                HttpStatusCode.BadRequest);
+        }
+
         var tokenHash = refreshTokenHasher.Hash(request.RefreshToken);
         var existingToken = await refreshTokenRepository.GetByTokenHashAsync(tokenHash, cancellationToken);
         if (existingToken is null || existingToken.IsRevoked)

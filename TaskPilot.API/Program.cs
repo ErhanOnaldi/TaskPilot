@@ -1,7 +1,9 @@
 using System.Text;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using TaskPilot.API.Extensions;
+using TaskPilot.Application.Extensions;
 using TaskPilot.Application.Features.Auth.Services;
 using TaskPilot.Domain.Options;
 using TaskPilot.Infrastructure.Extensions;
@@ -16,6 +18,8 @@ builder.Services.AddSwaggerExtension();
 builder.Services.AddPersistence(builder.Configuration);
 builder.Services.AddInfrastructure();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddValidatorsFromAssembly(typeof(IAuthService).Assembly);
+builder.Services.AddApplication();
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
