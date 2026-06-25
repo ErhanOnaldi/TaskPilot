@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Auth;
+using TaskPilot.Application.Interfaces.Persistence.Project;
 using TaskPilot.Application.Interfaces.Persistence.User;
 using TaskPilot.Application.Interfaces.Persistence.Workspace;
 using TaskPilot.Persistence.EntityRepositories;
@@ -29,6 +30,8 @@ public static class PersistenceExtensions
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
         services.AddScoped<IWorkspaceMemberRepository, WorkspaceMemberRepository>();
+        services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<IProjectMemberRepository, ProjectMemberRepository>();
         return services;
     }
     

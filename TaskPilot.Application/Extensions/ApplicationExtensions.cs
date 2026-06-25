@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using TaskPilot.Application.Features.Auth.Services;
+using TaskPilot.Application.Features.Project.Services;
 using TaskPilot.Application.Features.Workspace.Services;
 using TaskPilot.Application.Features.WorkspaceMembers.Services;
 
@@ -12,6 +13,7 @@ public static class ApplicationExtensions
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IWorkspaceService, WorkspaceService>();
         services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();
+        services.AddScoped<IProjectService, ProjectService>();
         return services;
     }
     
