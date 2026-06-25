@@ -51,8 +51,7 @@ public class WorkspaceMemberService(
         if (!validationResult.IsValid)
         {
             return ServiceResult<WorkspaceMemberResponse>.Fail(
-                validationResult.Errors.Select(x => x.ErrorMessage).ToList(),
-                HttpStatusCode.BadRequest);
+                validationResult.Errors.Select(x => x.ErrorMessage).ToList());
         }
         var currentUserId = currentUserService.UserId;
         var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
@@ -63,7 +62,7 @@ public class WorkspaceMemberService(
 
         if (workspace.IsArchived)
         {
-            return ServiceResult<WorkspaceMemberResponse>.Fail("Workspace is archived.", HttpStatusCode.BadRequest);
+            return ServiceResult<WorkspaceMemberResponse>.Fail("Workspace is archived.");
         }
         var isCurrentUserOwner = await workspaceMemberRepository.IsWorkspaceOwnerAsync(workspaceId, currentUserId, cancellationToken);
         if (!isCurrentUserOwner)
@@ -107,8 +106,7 @@ public class WorkspaceMemberService(
         if (!validationResult.IsValid)
         {
             return ServiceResult.Fail(
-                validationResult.Errors.Select(x => x.ErrorMessage).ToList(),
-                HttpStatusCode.BadRequest);
+                validationResult.Errors.Select(x => x.ErrorMessage).ToList());
         }
         var currentUserId = currentUserService.UserId;
         var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
@@ -119,7 +117,7 @@ public class WorkspaceMemberService(
 
         if (workspace.IsArchived)
         {
-            return ServiceResult.Fail("Workspace is archived.", HttpStatusCode.BadRequest);
+            return ServiceResult.Fail("Workspace is archived.");
         }
 
         var isCurrentUserOwner = await workspaceMemberRepository.IsWorkspaceOwnerAsync(workspaceId, currentUserId, cancellationToken);
@@ -138,7 +136,7 @@ public class WorkspaceMemberService(
             var ownerCount = await workspaceMemberRepository.CountOwnersAsync(workspaceId, cancellationToken);
             if (ownerCount == 1)
             {
-                return ServiceResult.Fail("Workspace must have at least one owner.", HttpStatusCode.BadRequest);
+                return ServiceResult.Fail("Workspace must have at least one owner.");
             }
         }
         memberToUpdate.Role = request.Role;
@@ -157,7 +155,7 @@ public class WorkspaceMemberService(
 
         if (workspace.IsArchived)
         {
-            return ServiceResult.Fail("Workspace is archived.", HttpStatusCode.BadRequest);
+            return ServiceResult.Fail("Workspace is archived.");
         }
 
         var isCurrentUserOwner = await workspaceMemberRepository.IsWorkspaceOwnerAsync(workspaceId, currentUserId, cancellationToken);
@@ -177,7 +175,7 @@ public class WorkspaceMemberService(
             var ownerCount = await workspaceMemberRepository.CountOwnersAsync(workspaceId, cancellationToken);
             if (ownerCount == 1)
             {
-                return ServiceResult.Fail("Workspace must have at least one owner.", HttpStatusCode.BadRequest);
+                return ServiceResult.Fail("Workspace must have at least one owner.");
             }
         }
         workspaceMemberRepository.Delete(memberToDelete);
