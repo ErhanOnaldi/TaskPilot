@@ -7,6 +7,7 @@ using TaskPilot.Application.Interfaces.Persistence.Project;
 using TaskPilot.Application.Interfaces.Persistence.User;
 using TaskPilot.Application.Interfaces.Persistence.Workspace;
 using TaskPilot.Persistence.EntityRepositories;
+using TaskPilot.Persistence.Interceptors;
 
 namespace TaskPilot.Persistence.Extensions;
 
@@ -14,7 +15,9 @@ public static class PersistenceExtensions
 {
     public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDbContext<AppDbContext>(options =>
+        services.AddScoped<AuditableEntitySaveChangesInterceptor>();
+
+        services.AddDbContext<AppDbContext>((serviceProvider, options) =>
         {
             options.UseNpgsql(
                 configuration.GetConnectionString("PostgreSql"),
@@ -23,6 +26,8 @@ public static class PersistenceExtensions
                     npgsqlOptions.MigrationsAssembly(
                         typeof(AppDbContext).Assembly.FullName);
                 });
+
+            options.AddInterceptors(serviceProvider.GetRequiredService<AuditableEntitySaveChangesInterceptor>());
         });
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork>();
