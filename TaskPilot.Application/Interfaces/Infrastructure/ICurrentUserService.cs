@@ -2,5 +2,7 @@ namespace TaskPilot.Application.Interfaces.Infrastructure;
 
 public interface ICurrentUserService
 {
-    int UserId { get; }
+    int? UserId { get; }
+    bool IsAuthenticated { get; }
+    int GetRequiredUserId();
 }

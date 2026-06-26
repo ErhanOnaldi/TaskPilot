@@ -7,17 +7,25 @@ namespace TaskPilot.Infrastructure;
 public class CurrentUserService(IHttpContextAccessor httpContextAccessor)
     : ICurrentUserService
 {
-    public int UserId
+    public int? UserId
     {
         get
         {
             var userIdClaim = httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdClaim, out var userId))
-            {
-                throw new InvalidOperationException("Current user id claim is missing or invalid.");
-            }
-
-            return userId;
+            return int.TryParse(userIdClaim, out var userId) ? userId : null;
         }
+    }
+
+    public bool IsAuthenticated =>
+        httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated == true;
+
+    public int GetRequiredUserId()
+    {
+        if (!IsAuthenticated || UserId is not { } userId)
+        {
+            throw new UnauthorizedAccessException("Current user id claim is missing or invalid.");
+        }
+
+        return userId;
     }
 }

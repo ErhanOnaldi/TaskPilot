@@ -21,7 +21,7 @@ public class ProjectService(
 {
     public async Task<ServiceResult<List<ProjectListItemResponse>>> GetProjectsAsync(int workspaceId, CancellationToken cancellationToken)
     {
-        var currentUserId = currentUserService.UserId;
+        var currentUserId = currentUserService.GetRequiredUserId();
         var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
         if (workspace == null)
         {
@@ -59,7 +59,7 @@ public class ProjectService(
                 validationResult.Errors.Select(x => x.ErrorMessage).ToList(),
                 HttpStatusCode.BadRequest);
         }
-        var currentUserId = currentUserService.UserId;
+        var currentUserId = currentUserService.GetRequiredUserId();
         var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
         if (workspace == null)
         {
@@ -109,7 +109,7 @@ public class ProjectService(
 
     public async Task<ServiceResult<ProjectResponse>> GetProjectAsync(int projectId, CancellationToken cancellationToken)
     {
-        var currentUserId = currentUserService.UserId;
+        var currentUserId = currentUserService.GetRequiredUserId();
         var project = await projectRepository.GetProjectByIdAsync(projectId,cancellationToken);
         if (project == null)
         {
@@ -133,7 +133,7 @@ public class ProjectService(
                 HttpStatusCode.BadRequest);
         }
 
-        var currentUserId = currentUserService.UserId;
+        var currentUserId = currentUserService.GetRequiredUserId();
         var project = await projectRepository.GetProjectForUpdateAsync(projectId, cancellationToken);
         if (project == null)
         {
@@ -190,7 +190,7 @@ public class ProjectService(
 
     public async Task<ServiceResult> ArchiveProjectAsync(int projectId, CancellationToken cancellationToken)
     {
-        var currentUserId = currentUserService.UserId;
+        var currentUserId = currentUserService.GetRequiredUserId();
         var project = await projectRepository.GetProjectForUpdateAsync(projectId, cancellationToken);
         if (project == null)
         {

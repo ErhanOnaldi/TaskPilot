@@ -72,7 +72,7 @@ public class TaskService(
             Priority = request.Priority ?? TaskItemPriority.Medium,
             Status = TaskItemStatus.Todo,
             AssignedUserId = request.AssignedUserId,
-            CreatedByUserId = currentUserService.UserId,
+            CreatedByUserId = currentUserService.GetRequiredUserId(),
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -188,7 +188,7 @@ public class TaskService(
         if (workspace is null) return ProjectAccess.Fail(ServiceResult.Fail("Workspace not found.", HttpStatusCode.NotFound));
         if (workspace.IsArchived) return ProjectAccess.Fail(ServiceResult.Fail("Workspace is archived.", HttpStatusCode.BadRequest));
 
-        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.UserId, cancellationToken);
+        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken);
         if (workspaceMember is null) return ProjectAccess.Fail(ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound));
 
         return new ProjectAccess(project, workspaceMember, null);
@@ -197,13 +197,13 @@ public class TaskService(
     private async Task<bool> IsProjectParticipantOrWorkspaceOwnerAsync(int projectId, WorkspaceMember workspaceMember, CancellationToken cancellationToken)
     {
         return workspaceMember.Role == Role.Owner ||
-               await projectMemberRepository.IsProjectMemberAsync(projectId, currentUserService.UserId, cancellationToken);
+               await projectMemberRepository.IsProjectMemberAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken);
     }
 
     private async Task<bool> IsProjectManagerOrWorkspaceOwnerAsync(int projectId, WorkspaceMember workspaceMember, CancellationToken cancellationToken)
     {
         return workspaceMember.Role == Role.Owner ||
-               await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.UserId, cancellationToken);
+               await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken);
     }
 
     private static TaskResponse Map(TaskItem task)

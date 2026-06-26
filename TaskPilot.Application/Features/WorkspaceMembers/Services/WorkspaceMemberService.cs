@@ -20,7 +20,7 @@ public class WorkspaceMemberService(
 {
     public async Task<ServiceResult<List<WorkspaceMemberResponse>>> GetMembersAsync(int workspaceId, CancellationToken cancellationToken)
     {
-        var currentUserId = currentUserService.UserId;
+        var currentUserId = currentUserService.GetRequiredUserId();
         var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
         if (workspace == null)
         {
@@ -53,7 +53,7 @@ public class WorkspaceMemberService(
             return ServiceResult<WorkspaceMemberResponse>.Fail(
                 validationResult.Errors.Select(x => x.ErrorMessage).ToList());
         }
-        var currentUserId = currentUserService.UserId;
+        var currentUserId = currentUserService.GetRequiredUserId();
         var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
         if (workspace == null)
         {
@@ -108,7 +108,7 @@ public class WorkspaceMemberService(
             return ServiceResult.Fail(
                 validationResult.Errors.Select(x => x.ErrorMessage).ToList());
         }
-        var currentUserId = currentUserService.UserId;
+        var currentUserId = currentUserService.GetRequiredUserId();
         var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
         if (workspace == null)
         {
@@ -146,7 +146,7 @@ public class WorkspaceMemberService(
 
     public async Task<ServiceResult> RemoveMemberAsync(int workspaceId, int userId, CancellationToken cancellationToken)
     {
-        var currentUserId = currentUserService.UserId;
+        var currentUserId = currentUserService.GetRequiredUserId();
         var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
         if (workspace == null)
         {

@@ -45,7 +45,7 @@ public class CommentService(
         var comment = new Comment
         {
             TaskId = taskId,
-            UserId = currentUserService.UserId,
+            UserId = currentUserService.GetRequiredUserId(),
             Content = request.Content.Trim(),
             CreatedAt = now,
             UpdatedAt = now
@@ -66,7 +66,7 @@ public class CommentService(
         if (task is null) return ServiceResult.Fail("Task not found.", HttpStatusCode.NotFound);
 
         var canManage = await CanManageProjectAsync(task.ProjectId, cancellationToken);
-        if (comment.UserId != currentUserService.UserId && !canManage)
+        if (comment.UserId != currentUserService.GetRequiredUserId() && !canManage)
         {
             return ServiceResult.Fail("Only comment author, workspace owner, or project manager can update comment.", HttpStatusCode.Forbidden);
         }
@@ -85,7 +85,7 @@ public class CommentService(
         if (task is null) return ServiceResult.Fail("Task not found.", HttpStatusCode.NotFound);
 
         var canManage = await CanManageProjectAsync(task.ProjectId, cancellationToken);
-        if (comment.UserId != currentUserService.UserId && !canManage)
+        if (comment.UserId != currentUserService.GetRequiredUserId() && !canManage)
         {
             return ServiceResult.Fail("Only comment author, workspace owner, or project manager can delete comment.", HttpStatusCode.Forbidden);
         }
@@ -99,7 +99,7 @@ public class CommentService(
     {
         var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
         if (project is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
-        if (!await workspaceMemberRepository.IsWorkspaceMemberAsync(project.WorkspaceId, currentUserService.UserId, cancellationToken))
+        if (!await workspaceMemberRepository.IsWorkspaceMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken))
         {
             return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
         }
@@ -111,13 +111,13 @@ public class CommentService(
         var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
         if (project is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
         if (project.Status == ProjectStatus.Archived) return ServiceResult.Fail("Project is archived.", HttpStatusCode.BadRequest);
-        if (!await workspaceMemberRepository.IsWorkspaceMemberAsync(project.WorkspaceId, currentUserService.UserId, cancellationToken))
+        if (!await workspaceMemberRepository.IsWorkspaceMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken))
         {
             return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
         }
-        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.UserId, cancellationToken);
+        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken);
         if (workspaceMember?.Role == Role.Owner) return null;
-        if (!await projectMemberRepository.IsProjectMemberAsync(projectId, currentUserService.UserId, cancellationToken))
+        if (!await projectMemberRepository.IsProjectMemberAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken))
         {
             return ServiceResult.Fail("Only project members can comment.", HttpStatusCode.Forbidden);
         }
@@ -128,9 +128,9 @@ public class CommentService(
     {
         var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
         if (project is null) return false;
-        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.UserId, cancellationToken);
+        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken);
         return workspaceMember?.Role == Role.Owner ||
-               await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.UserId, cancellationToken);
+               await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken);
     }
 
     private static CommentResponse Map(Comment comment)

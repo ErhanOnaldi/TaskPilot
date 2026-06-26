@@ -129,7 +129,7 @@ public class ProjectMemberService(
 
     private async Task<ProjectAccess> LoadProjectAccessAsync(int projectId, CancellationToken cancellationToken)
     {
-        var currentUserId = currentUserService.UserId;
+        var currentUserId = currentUserService.GetRequiredUserId();
         var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
         if (project is null) return ProjectAccess.Fail(ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound));
         if (project.Status == ProjectStatus.Archived) return ProjectAccess.Fail(ServiceResult.Fail("Project is archived.", HttpStatusCode.BadRequest));
@@ -147,7 +147,7 @@ public class ProjectMemberService(
     private async Task<bool> CanManageProjectAsync(int projectId, WorkspaceMember workspaceMember, CancellationToken cancellationToken)
     {
         return workspaceMember.Role == Role.Owner ||
-               await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.UserId, cancellationToken);
+               await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken);
     }
 
     private static ProjectMemberResponse Map(ProjectMember member)

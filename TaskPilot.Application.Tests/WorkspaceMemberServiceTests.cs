@@ -96,7 +96,9 @@ public class WorkspaceMemberServiceTests
 
     private sealed class FakeCurrentUserService(int userId) : ICurrentUserService
     {
-        public int UserId { get; } = userId;
+        public int? UserId { get; } = userId;
+        public bool IsAuthenticated => true;
+        public int GetRequiredUserId() => userId;
     }
 
     private sealed class FakeUnitOfWork : IUnitOfWork

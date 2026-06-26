@@ -25,7 +25,7 @@ public class WorkspaceService(
                 HttpStatusCode.BadRequest);
         }
 
-        var userId = currentUserService.UserId;
+        var userId = currentUserService.GetRequiredUserId();
         var workspace = new WorkSpace()
         {
             Name = request.Name.Trim(),
@@ -50,7 +50,7 @@ public class WorkspaceService(
 
     public async Task<ServiceResult<List<WorkspaceListItemResponse>>> GetWorkSpacesAsync(CancellationToken cancellationToken)
     {
-        var userId = currentUserService.UserId;
+        var userId = currentUserService.GetRequiredUserId();
         var workspaces = await workspaceRepository.GetWorkspacesByUserIdAsync(userId, cancellationToken);
 
         return ServiceResult<List<WorkspaceListItemResponse>>.Success(
@@ -59,7 +59,8 @@ public class WorkspaceService(
 
     public async Task<ServiceResult<WorkspaceResponse>> GetWorkspaceAsync(int id, CancellationToken cancellationToken)
     {
-        var workspace = await workspaceRepository.GetWorkspaceForMemberAsync(id, currentUserService.UserId, cancellationToken);
+        var currentUserId = currentUserService.GetRequiredUserId();
+        var workspace = await workspaceRepository.GetWorkspaceForMemberAsync(id, currentUserId, cancellationToken);
         if (workspace == null)
         {
             return ServiceResult<WorkspaceResponse>.Fail("Workspace not found.", HttpStatusCode.NotFound);
@@ -78,7 +79,7 @@ public class WorkspaceService(
                 HttpStatusCode.BadRequest);
         }
 
-        var currentUserId = currentUserService.UserId;
+        var currentUserId = currentUserService.GetRequiredUserId();
         var memberWorkspace = await workspaceRepository.GetWorkspaceForMemberAsync(id, currentUserId, cancellationToken);
         if (memberWorkspace == null)
         {
@@ -100,7 +101,7 @@ public class WorkspaceService(
 
     public async Task<ServiceResult> ArchiveWorkspaceAsync(int id, CancellationToken cancellationToken)
     {
-        var currentUserId = currentUserService.UserId;
+        var currentUserId = currentUserService.GetRequiredUserId();
         var memberWorkspace = await workspaceRepository.GetWorkspaceForMemberAsync(id, currentUserId, cancellationToken);
         if (memberWorkspace == null)
         {

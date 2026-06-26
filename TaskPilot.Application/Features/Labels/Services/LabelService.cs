@@ -96,7 +96,7 @@ public class LabelService(
     {
         var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
         if (project is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
-        if (!await workspaceMemberRepository.IsWorkspaceMemberAsync(project.WorkspaceId, currentUserService.UserId, cancellationToken))
+        if (!await workspaceMemberRepository.IsWorkspaceMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken))
         {
             return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
         }
@@ -108,10 +108,10 @@ public class LabelService(
         var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
         if (project is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
         if (project.Status == ProjectStatus.Archived) return ServiceResult.Fail("Project is archived.", HttpStatusCode.BadRequest);
-        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.UserId, cancellationToken);
+        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken);
         if (workspaceMember is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
         if (workspaceMember.Role == Role.Owner) return null;
-        if (!await projectMemberRepository.IsProjectMemberAsync(projectId, currentUserService.UserId, cancellationToken))
+        if (!await projectMemberRepository.IsProjectMemberAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken))
         {
             return ServiceResult.Fail("Only project members can manage task labels.", HttpStatusCode.Forbidden);
         }
@@ -123,10 +123,10 @@ public class LabelService(
         var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
         if (project is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
         if (project.Status == ProjectStatus.Archived) return ServiceResult.Fail("Project is archived.", HttpStatusCode.BadRequest);
-        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.UserId, cancellationToken);
+        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken);
         if (workspaceMember is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
         if (workspaceMember.Role == Role.Owner) return null;
-        if (!await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.UserId, cancellationToken))
+        if (!await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken))
         {
             return ServiceResult.Fail("Only workspace owner or project manager can manage labels.", HttpStatusCode.Forbidden);
         }

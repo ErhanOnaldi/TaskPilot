@@ -2,6 +2,7 @@ using System.Text;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using TaskPilot.API.ExceptionHandling;
 using TaskPilot.API.Extensions;
 using TaskPilot.Application.Extensions;
 using TaskPilot.Application.Features.Auth.Services;
@@ -43,8 +44,11 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 var app = builder.Build();
+app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {

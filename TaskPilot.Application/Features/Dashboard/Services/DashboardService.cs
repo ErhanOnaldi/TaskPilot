@@ -19,7 +19,8 @@ public class DashboardService(
         var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
         if (project is null) return ServiceResult<ProjectDashboardResponse>.Fail("Project not found.", HttpStatusCode.NotFound);
 
-        if (!await workspaceMemberRepository.IsWorkspaceMemberAsync(project.WorkspaceId, currentUserService.UserId, cancellationToken))
+        var currentUserId = currentUserService.GetRequiredUserId();
+        if (!await workspaceMemberRepository.IsWorkspaceMemberAsync(project.WorkspaceId, currentUserId, cancellationToken))
         {
             return ServiceResult<ProjectDashboardResponse>.Fail("Project not found.", HttpStatusCode.NotFound);
         }

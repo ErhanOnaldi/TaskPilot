@@ -13,7 +13,7 @@ public class NotificationService(
 {
     public Task<ServiceResult<List<NotificationResponse>>> GetNotificationsAsync(CancellationToken cancellationToken)
     {
-        var userId = currentUserService.UserId;
+        var userId = currentUserService.GetRequiredUserId();
         var notifications = notificationRepository
             .Where(x => x.UserId == userId)
             .OrderByDescending(x => x.CreatedAt)
@@ -26,7 +26,7 @@ public class NotificationService(
     public async Task<ServiceResult> MarkAsReadAsync(int notificationId, CancellationToken cancellationToken)
     {
         var notification = await notificationRepository.GetByIdAsync(notificationId);
-        if (notification is null || notification.UserId != currentUserService.UserId)
+        if (notification is null || notification.UserId != currentUserService.GetRequiredUserId())
         {
             return ServiceResult.Fail("Notification not found.", HttpStatusCode.NotFound);
         }
@@ -39,7 +39,7 @@ public class NotificationService(
 
     public async Task<ServiceResult> MarkAllAsReadAsync(CancellationToken cancellationToken)
     {
-        var userId = currentUserService.UserId;
+        var userId = currentUserService.GetRequiredUserId();
         var notifications = (await notificationRepository.GetAllAsync())
             .Where(x => x.UserId == userId && !x.IsRead)
             .ToList();

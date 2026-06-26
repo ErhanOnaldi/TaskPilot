@@ -21,6 +21,11 @@
   <ItemGroup>
     <ProjectReference Include="..\TaskPilot.Domain\TaskPilot.Domain.csproj" />
     <ProjectReference Include="..\TaskPilot.Application\TaskPilot.Application.csproj" />
+    <ProjectReference Include="..\TaskPilot.Infrastructure\TaskPilot.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>
