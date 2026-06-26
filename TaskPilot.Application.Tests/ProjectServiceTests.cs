@@ -162,11 +162,42 @@ public class ProjectServiceTests
 
     private sealed class FakeProjectMemberRepository(FakeProjectRepository projectRepository) : IProjectMemberRepository
     {
+        public Task<List<ProjectMember>> GetMembersByProjectIdAsync(int projectId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(projectRepository.Projects
+                .Where(project => project.Id == projectId)
+                .SelectMany(project => project.Members)
+                .ToList());
+        }
+
+        public Task<ProjectMember?> GetMemberAsync(int projectId, int userId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(projectRepository.Projects
+                .Where(project => project.Id == projectId)
+                .SelectMany(project => project.Members)
+                .FirstOrDefault(member => member.UserId == userId));
+        }
+
+        public Task<bool> IsProjectMemberAsync(int projectId, int userId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(projectRepository.Projects.Any(project =>
+                project.Id == projectId &&
+                project.Members.Any(member => member.UserId == userId)));
+        }
+
         public Task<bool> IsProjectManagerAsync(int projectId, int userId, CancellationToken cancellationToken)
         {
             return Task.FromResult(projectRepository.Projects.Any(project =>
                 project.Id == projectId &&
                 project.Members.Any(member => member.UserId == userId && member.Role == ProjectRole.ProjectManager)));
+        }
+
+        public Task<int> CountProjectManagersAsync(int projectId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(projectRepository.Projects
+                .Where(project => project.Id == projectId)
+                .SelectMany(project => project.Members)
+                .Count(member => member.Role == ProjectRole.ProjectManager));
         }
 
         public Task<List<ProjectMember>> GetAllAsync() => Task.FromResult(projectRepository.Projects.SelectMany(project => project.Members).ToList());
