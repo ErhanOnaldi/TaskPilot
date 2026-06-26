@@ -1,4 +1,5 @@
 using System.Net;
+using AutoMapper;
 using FluentValidation;
 using Microsoft.Extensions.Options;
 using TaskPilot.Application.Features.Auth.Dtos;
@@ -22,7 +23,8 @@ public class AuthService(
     IValidator<RegisterRequest> registerValidator,
     IValidator<LoginRequest> loginValidator,
     IValidator<RefreshTokenRequest> refreshTokenValidator,
-    IOptions<JwtOptions> jwtOptions) : IAuthService
+    IOptions<JwtOptions> jwtOptions,
+    IMapper mapper) : IAuthService
 {
     public async Task<ServiceResult<AuthResponse>> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
     {
@@ -96,7 +98,7 @@ public class AuthService(
             return ServiceResult<AuthUserResponse>.Fail("User not found.", HttpStatusCode.NotFound);
         }
 
-        return ServiceResult<AuthUserResponse>.Success(new AuthUserResponse(user.Id, user.Email));
+        return ServiceResult<AuthUserResponse>.Success(mapper.Map<AuthUserResponse>(user));
     }
 
     public async Task<ServiceResult<AuthResponse>> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken)
@@ -189,14 +191,14 @@ public class AuthService(
             });
     }
 
-    private static AuthResponse CreateAuthResponse(User user, AuthToken authToken, CreatedRefreshToken refreshToken)
+    private AuthResponse CreateAuthResponse(User user, AuthToken authToken, CreatedRefreshToken refreshToken)
     {
         return new AuthResponse(
             authToken.AccessToken,
             authToken.ExpiresAtUtc,
             refreshToken.RawToken,
             refreshToken.Entity.ExpiresAtUtc,
-            new AuthUserResponse(user.Id, user.Email));
+            mapper.Map<AuthUserResponse>(user));
     }
 
     private sealed record CreatedRefreshToken(string RawToken, RefreshToken Entity);

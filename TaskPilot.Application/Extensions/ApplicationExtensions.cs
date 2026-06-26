@@ -9,6 +9,7 @@ using TaskPilot.Application.Features.ProjectMembers.Services;
 using TaskPilot.Application.Features.Tasks.Services;
 using TaskPilot.Application.Features.Workspace.Services;
 using TaskPilot.Application.Features.WorkspaceMembers.Services;
+using TaskPilot.Application.Mappings;
 
 namespace TaskPilot.Application.Extensions;
 
@@ -16,6 +17,7 @@ public static class ApplicationExtensions
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
+        services.AddAutoMapper(_ => { }, typeof(ApplicationMappingProfile).Assembly);
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IWorkspaceService, WorkspaceService>();
         services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();

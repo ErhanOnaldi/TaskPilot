@@ -1,4 +1,5 @@
 using System.Net;
+using AutoMapper;
 using FluentValidation;
 using TaskPilot.Application.Features.Comments.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure;
@@ -18,7 +19,8 @@ public class CommentService(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUserService,
     IValidator<CreateCommentRequest> createValidator,
-    IValidator<UpdateCommentRequest> updateValidator) : ICommentService
+    IValidator<UpdateCommentRequest> updateValidator,
+    IMapper mapper) : ICommentService
 {
     public async Task<ServiceResult<List<CommentResponse>>> GetCommentsAsync(int taskId, CancellationToken cancellationToken)
     {
@@ -28,7 +30,7 @@ public class CommentService(
         if (access is not null) return ServiceResult<List<CommentResponse>>.Fail(access.ErrorMessages!, access.Status);
 
         var comments = commentRepository.Where(x => x.TaskId == taskId).OrderBy(x => x.CreatedAt).ToList();
-        return ServiceResult<List<CommentResponse>>.Success(comments.Select(Map).ToList());
+        return ServiceResult<List<CommentResponse>>.Success(mapper.Map<List<CommentResponse>>(comments));
     }
 
     public async Task<ServiceResult<CommentResponse>> CreateCommentAsync(int taskId, CreateCommentRequest request, CancellationToken cancellationToken)
@@ -52,7 +54,7 @@ public class CommentService(
         };
         await commentRepository.AddAsync(comment);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return ServiceResult<CommentResponse>.Success(Map(comment), HttpStatusCode.Created);
+        return ServiceResult<CommentResponse>.Success(mapper.Map<CommentResponse>(comment), HttpStatusCode.Created);
     }
 
     public async Task<ServiceResult> UpdateCommentAsync(int commentId, UpdateCommentRequest request, CancellationToken cancellationToken)
@@ -133,8 +135,4 @@ public class CommentService(
                await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken);
     }
 
-    private static CommentResponse Map(Comment comment)
-    {
-        return new CommentResponse(comment.Id, comment.TaskId, comment.UserId, comment.Content, comment.CreatedAt, comment.UpdatedAt);
-    }
 }

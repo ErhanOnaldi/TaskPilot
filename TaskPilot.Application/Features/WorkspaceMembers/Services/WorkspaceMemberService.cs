@@ -1,4 +1,5 @@
 using System.Net;
+using AutoMapper;
 using FluentValidation;
 using TaskPilot.Application.Features.WorkspaceMembers.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure;
@@ -16,7 +17,8 @@ public class WorkspaceMemberService(
     IUserRepository userRepository,
     IWorkspaceMemberRepository workspaceMemberRepository,
     IValidator<AddWorkspaceMemberRequest> createValidator,
-    IValidator<UpdateWorkspaceMemberRoleRequest> updateValidator) : IWorkspaceMemberService
+    IValidator<UpdateWorkspaceMemberRoleRequest> updateValidator,
+    IMapper mapper) : IWorkspaceMemberService
 {
     public async Task<ServiceResult<List<WorkspaceMemberResponse>>> GetMembersAsync(int workspaceId, CancellationToken cancellationToken)
     {
@@ -34,15 +36,8 @@ public class WorkspaceMemberService(
         }
 
         var members = await workspaceMemberRepository.GetMembersByWorkspaceIdAsync(workspaceId, cancellationToken);
-        var response = members
-            .Select(member => new WorkspaceMemberResponse(
-                member.UserId,
-                member.User?.Email ?? string.Empty,
-                member.Role,
-                member.JoinedAt))
-            .ToList();
-
-        return ServiceResult<List<WorkspaceMemberResponse>>.Success(response);
+        return ServiceResult<List<WorkspaceMemberResponse>>.Success(
+            mapper.Map<List<WorkspaceMemberResponse>>(members));
     }
 
     public async Task<ServiceResult<WorkspaceMemberResponse>> AddMemberAsync(int workspaceId, AddWorkspaceMemberRequest request, CancellationToken cancellationToken)
@@ -89,12 +84,10 @@ public class WorkspaceMemberService(
         };
         await workspaceMemberRepository.AddAsync(workspaceMemberToAdd);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        workspaceMemberToAdd.User = userToAdd;
+
         return ServiceResult<WorkspaceMemberResponse>.Success(
-            new WorkspaceMemberResponse(
-                workspaceMemberToAdd.UserId,
-                userToAdd.Email,
-                workspaceMemberToAdd.Role,
-                workspaceMemberToAdd.JoinedAt),
+            mapper.Map<WorkspaceMemberResponse>(workspaceMemberToAdd),
             HttpStatusCode.Created);
 
     }

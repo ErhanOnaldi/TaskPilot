@@ -1,4 +1,5 @@
 using System.Net;
+using AutoMapper;
 using FluentValidation;
 using TaskPilot.Application.Features.Tasks.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure;
@@ -21,7 +22,8 @@ public class TaskService(
     IValidator<CreateTaskRequest> createValidator,
     IValidator<UpdateTaskRequest> updateValidator,
     IValidator<UpdateTaskStatusRequest> statusValidator,
-    IValidator<AssignTaskRequest> assignValidator) : ITaskService
+    IValidator<AssignTaskRequest> assignValidator,
+    IMapper mapper) : ITaskService
 {
     public async Task<ServiceResult<List<TaskResponse>>> GetTasksAsync(int projectId, CancellationToken cancellationToken)
     {
@@ -31,7 +33,7 @@ public class TaskService(
         var tasks = taskRepository.Where(x => x.ProjectId == projectId)
             .OrderByDescending(x => x.CreatedAt)
             .ToList();
-        return ServiceResult<List<TaskResponse>>.Success(tasks.Select(Map).ToList());
+        return ServiceResult<List<TaskResponse>>.Success(mapper.Map<List<TaskResponse>>(tasks));
     }
 
     public async Task<ServiceResult<TaskResponse>> GetTaskAsync(int taskId, CancellationToken cancellationToken)
@@ -42,7 +44,7 @@ public class TaskService(
         var access = await LoadProjectAccessAsync(task.ProjectId, requireActiveProject: false, cancellationToken);
         if (access.Result is not null) return ServiceResult<TaskResponse>.Fail(access.Result.ErrorMessages!, access.Result.Status);
 
-        return ServiceResult<TaskResponse>.Success(Map(task));
+        return ServiceResult<TaskResponse>.Success(mapper.Map<TaskResponse>(task));
     }
 
     public async Task<ServiceResult<TaskResponse>> CreateTaskAsync(int projectId, CreateTaskRequest request, CancellationToken cancellationToken)
@@ -79,7 +81,7 @@ public class TaskService(
 
         await taskRepository.AddAsync(task);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return ServiceResult<TaskResponse>.Success(Map(task), HttpStatusCode.Created);
+        return ServiceResult<TaskResponse>.Success(mapper.Map<TaskResponse>(task), HttpStatusCode.Created);
     }
 
     public async Task<ServiceResult> UpdateTaskAsync(int taskId, UpdateTaskRequest request, CancellationToken cancellationToken)
@@ -204,23 +206,6 @@ public class TaskService(
     {
         return workspaceMember.Role == Role.Owner ||
                await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken);
-    }
-
-    private static TaskResponse Map(TaskItem task)
-    {
-        return new TaskResponse(
-            task.Id,
-            task.ProjectId,
-            task.Title,
-            task.Description,
-            task.Status,
-            task.Priority,
-            task.DueDate,
-            task.AssignedUserId,
-            task.CreatedByUserId,
-            task.CreatedAt,
-            task.UpdatedAt,
-            task.CompletedAt);
     }
 
     private sealed record ProjectAccess(ProjectEntity Project, WorkspaceMember WorkspaceMember, ServiceResult? Result)

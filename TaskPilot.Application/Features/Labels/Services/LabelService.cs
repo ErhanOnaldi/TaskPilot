@@ -1,4 +1,5 @@
 using System.Net;
+using AutoMapper;
 using FluentValidation;
 using TaskPilot.Application.Features.Labels.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure;
@@ -18,7 +19,8 @@ public class LabelService(
     IWorkspaceMemberRepository workspaceMemberRepository,
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUserService,
-    IValidator<CreateLabelRequest> createValidator) : ILabelService
+    IValidator<CreateLabelRequest> createValidator,
+    IMapper mapper) : ILabelService
 {
     public async Task<ServiceResult<List<LabelResponse>>> GetLabelsAsync(int projectId, CancellationToken cancellationToken)
     {
@@ -26,7 +28,7 @@ public class LabelService(
         if (access is not null) return ServiceResult<List<LabelResponse>>.Fail(access.ErrorMessages!, access.Status);
 
         var labels = labelRepository.Where(x => x.ProjectId == projectId).OrderBy(x => x.Name).ToList();
-        return ServiceResult<List<LabelResponse>>.Success(labels.Select(Map).ToList());
+        return ServiceResult<List<LabelResponse>>.Success(mapper.Map<List<LabelResponse>>(labels));
     }
 
     public async Task<ServiceResult<LabelResponse>> CreateLabelAsync(int projectId, CreateLabelRequest request, CancellationToken cancellationToken)
@@ -54,7 +56,7 @@ public class LabelService(
 
         await labelRepository.AddAsync(label);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return ServiceResult<LabelResponse>.Success(Map(label), HttpStatusCode.Created);
+        return ServiceResult<LabelResponse>.Success(mapper.Map<LabelResponse>(label), HttpStatusCode.Created);
     }
 
     public async Task<ServiceResult> AddLabelToTaskAsync(int taskId, int labelId, CancellationToken cancellationToken)
@@ -133,8 +135,4 @@ public class LabelService(
         return null;
     }
 
-    private static LabelResponse Map(Label label)
-    {
-        return new LabelResponse(label.Id, label.ProjectId, label.Name, label.Color, label.CreatedAt);
-    }
 }

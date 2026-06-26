@@ -1,5 +1,7 @@
 using System.Linq.Expressions;
 using System.Net;
+using AutoMapper;
+using Microsoft.Extensions.Logging.Abstractions;
 using TaskPilot.Application.Features.Project.Dtos;
 using TaskPilot.Application.Features.Project.Services;
 using TaskPilot.Application.Features.Project.Validators;
@@ -7,6 +9,7 @@ using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Project;
 using TaskPilot.Application.Interfaces.Persistence.Workspace;
+using TaskPilot.Application.Mappings;
 using TaskPilot.Domain.Entities;
 using ProjectEntity = TaskPilot.Domain.Entities.Project;
 
@@ -108,7 +111,15 @@ public class ProjectServiceTests
             new FakeUnitOfWork(),
             new FakeCurrentUserService(currentUserId),
             new CreateProjectRequestValidator(),
-            new UpdateProjectRequestValidator());
+            new UpdateProjectRequestValidator(),
+            CreateMapper());
+    }
+
+    private static IMapper CreateMapper()
+    {
+        return new MapperConfiguration(
+            configuration => configuration.AddProfile<ApplicationMappingProfile>(),
+            NullLoggerFactory.Instance).CreateMapper();
     }
 
     private sealed class FakeCurrentUserService(int userId) : ICurrentUserService

@@ -1,4 +1,5 @@
 using System.Net;
+using AutoMapper;
 using TaskPilot.Application.Features.Notifications.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
@@ -9,7 +10,8 @@ namespace TaskPilot.Application.Features.Notifications.Services;
 public class NotificationService(
     IGenericRepository<Notification> notificationRepository,
     IUnitOfWork unitOfWork,
-    ICurrentUserService currentUserService) : INotificationService
+    ICurrentUserService currentUserService,
+    IMapper mapper) : INotificationService
 {
     public Task<ServiceResult<List<NotificationResponse>>> GetNotificationsAsync(CancellationToken cancellationToken)
     {
@@ -17,10 +19,10 @@ public class NotificationService(
         var notifications = notificationRepository
             .Where(x => x.UserId == userId)
             .OrderByDescending(x => x.CreatedAt)
-            .Select(Map)
             .ToList();
 
-        return Task.FromResult(ServiceResult<List<NotificationResponse>>.Success(notifications));
+        return Task.FromResult(
+            ServiceResult<List<NotificationResponse>>.Success(mapper.Map<List<NotificationResponse>>(notifications)));
     }
 
     public async Task<ServiceResult> MarkAsReadAsync(int notificationId, CancellationToken cancellationToken)
@@ -53,15 +55,4 @@ public class NotificationService(
         return ServiceResult.Success(HttpStatusCode.NoContent);
     }
 
-    private static NotificationResponse Map(Notification notification)
-    {
-        return new NotificationResponse(
-            notification.Id,
-            notification.Type,
-            notification.Title,
-            notification.Message,
-            notification.IsRead,
-            notification.RelatedEntityId,
-            notification.CreatedAt);
-    }
 }

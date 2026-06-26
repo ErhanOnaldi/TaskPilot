@@ -1,4 +1,5 @@
 using System.Net;
+using AutoMapper;
 using FluentValidation;
 using TaskPilot.Application.Features.Workspace.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure;
@@ -13,7 +14,8 @@ public class WorkspaceService(
     IWorkspaceRepository workspaceRepository,
     IUnitOfWork unitOfWork,
     IValidator<CreateWorkspaceRequest> createValidator,
-    IValidator<UpdateWorkspaceRequest> updateValidator) : IWorkspaceService
+    IValidator<UpdateWorkspaceRequest> updateValidator,
+    IMapper mapper) : IWorkspaceService
 {
     public async Task<ServiceResult<WorkspaceResponse>> CreateWorkspaceAsync(CreateWorkspaceRequest request, CancellationToken cancellationToken)
     {
@@ -44,7 +46,7 @@ public class WorkspaceService(
         await workspaceRepository.AddAsync(workspace);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ServiceResult<WorkspaceResponse>.SuccessAsCreated(
-            MapToResponse(workspace),
+            mapper.Map<WorkspaceResponse>(workspace),
             $"api/workspaces/{workspace.Id}");
     }
 
@@ -54,7 +56,7 @@ public class WorkspaceService(
         var workspaces = await workspaceRepository.GetWorkspacesByUserIdAsync(userId, cancellationToken);
 
         return ServiceResult<List<WorkspaceListItemResponse>>.Success(
-            workspaces.Select(MapToListItemResponse).ToList());
+            mapper.Map<List<WorkspaceListItemResponse>>(workspaces));
     }
 
     public async Task<ServiceResult<WorkspaceResponse>> GetWorkspaceAsync(int id, CancellationToken cancellationToken)
@@ -66,7 +68,7 @@ public class WorkspaceService(
             return ServiceResult<WorkspaceResponse>.Fail("Workspace not found.", HttpStatusCode.NotFound);
         }
 
-        return ServiceResult<WorkspaceResponse>.Success(MapToResponse(workspace));
+        return ServiceResult<WorkspaceResponse>.Success(mapper.Map<WorkspaceResponse>(workspace));
     }
 
     public async Task<ServiceResult> UpdateWorkspaceAsync(int id, UpdateWorkspaceRequest request, CancellationToken cancellationToken)
@@ -121,24 +123,4 @@ public class WorkspaceService(
         return ServiceResult.Success();
     }
 
-    private static WorkspaceResponse MapToResponse(WorkSpace workspace)
-    {
-        return new WorkspaceResponse(
-            workspace.Id,
-            workspace.Name,
-            workspace.IsArchived,
-            workspace.CreatedByUserId,
-            workspace.CreatedAt,
-            workspace.UpdatedAt);
-    }
-
-    private static WorkspaceListItemResponse MapToListItemResponse(WorkSpace workspace)
-    {
-        return new WorkspaceListItemResponse(
-            workspace.Id,
-            workspace.Name,
-            workspace.IsArchived,
-            workspace.CreatedAt,
-            workspace.UpdatedAt);
-    }
 }

@@ -1,4 +1,5 @@
 using System.Net;
+using AutoMapper;
 using FluentValidation;
 using TaskPilot.Application.Features.Project.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure;
@@ -17,7 +18,8 @@ public class ProjectService(
     IUnitOfWork unitOfWork, 
     ICurrentUserService currentUserService, 
     IValidator<CreateProjectRequest> createValidator,
-    IValidator<UpdateProjectRequest> updateValidator) : IProjectService
+    IValidator<UpdateProjectRequest> updateValidator,
+    IMapper mapper) : IProjectService
 {
     public async Task<ServiceResult<List<ProjectListItemResponse>>> GetProjectsAsync(int workspaceId, CancellationToken cancellationToken)
     {
@@ -38,16 +40,8 @@ public class ProjectService(
         }
 
         var projects = await projectRepository.GetProjectsByWorkspaceIdAsync(workspaceId, cancellationToken);
-        var projectsAsDtos = projects.Select(x => new ProjectListItemResponse
-        (
-            x.Id,
-            x.Name,
-            x.Description,
-            x.Status,
-            x.CreatedAt,
-            x.UpdatedAt
-        )).ToList();
-        return ServiceResult<List<ProjectListItemResponse>>.Success(projectsAsDtos);
+        return ServiceResult<List<ProjectListItemResponse>>.Success(
+            mapper.Map<List<ProjectListItemResponse>>(projects));
     }
 
     public async Task<ServiceResult<ProjectResponse>> CreateProjectAsync(int workspaceId, CreateProjectRequest request, CancellationToken cancellationToken)
@@ -104,7 +98,7 @@ public class ProjectService(
         });
         await projectRepository.AddAsync(project);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return ServiceResult<ProjectResponse>.Success(new ProjectResponse(project.Id,project.WorkspaceId,project.Name,project.Description,project.Status,project.CreatedByUserId,project.CreatedAt,project.UpdatedAt),HttpStatusCode.Created);
+        return ServiceResult<ProjectResponse>.Success(mapper.Map<ProjectResponse>(project), HttpStatusCode.Created);
     }
 
     public async Task<ServiceResult<ProjectResponse>> GetProjectAsync(int projectId, CancellationToken cancellationToken)
@@ -120,7 +114,7 @@ public class ProjectService(
         {
             return ServiceResult<ProjectResponse>.Fail("Project member not found", HttpStatusCode.NotFound);
         }
-        return ServiceResult<ProjectResponse>.Success(new ProjectResponse(project.Id,project.WorkspaceId,project.Name,project.Description,project.Status,project.CreatedByUserId,project.CreatedAt,project.UpdatedAt));
+        return ServiceResult<ProjectResponse>.Success(mapper.Map<ProjectResponse>(project));
     }
 
     public async Task<ServiceResult> UpdateProjectAsync(int projectId, UpdateProjectRequest request, CancellationToken cancellationToken)

@@ -1,5 +1,7 @@
 using System.Linq.Expressions;
 using System.Net;
+using AutoMapper;
+using Microsoft.Extensions.Logging.Abstractions;
 using TaskPilot.Application;
 using TaskPilot.Application.Features.WorkspaceMembers.Dtos;
 using TaskPilot.Application.Features.WorkspaceMembers.Services;
@@ -8,6 +10,7 @@ using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.User;
 using TaskPilot.Application.Interfaces.Persistence.Workspace;
+using TaskPilot.Application.Mappings;
 using TaskPilot.Domain.Entities;
 
 namespace TaskPilot.Application.Tests;
@@ -91,7 +94,15 @@ public class WorkspaceMemberServiceTests
             userRepository,
             memberRepository,
             new AddWorkspaceMemberRequestValidator(),
-            new UpdateWorkspaceMemberRoleRequestValidator());
+            new UpdateWorkspaceMemberRoleRequestValidator(),
+            CreateMapper());
+    }
+
+    private static IMapper CreateMapper()
+    {
+        return new MapperConfiguration(
+            configuration => configuration.AddProfile<ApplicationMappingProfile>(),
+            NullLoggerFactory.Instance).CreateMapper();
     }
 
     private sealed class FakeCurrentUserService(int userId) : ICurrentUserService

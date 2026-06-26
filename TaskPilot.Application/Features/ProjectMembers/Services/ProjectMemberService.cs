@@ -1,4 +1,5 @@
 using System.Net;
+using AutoMapper;
 using FluentValidation;
 using TaskPilot.Application.Features.ProjectMembers.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure;
@@ -18,7 +19,8 @@ public class ProjectMemberService(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUserService,
     IValidator<AddProjectMemberRequest> addValidator,
-    IValidator<UpdateProjectMemberRoleRequest> updateValidator) : IProjectMemberService
+    IValidator<UpdateProjectMemberRoleRequest> updateValidator,
+    IMapper mapper) : IProjectMemberService
 {
     public async Task<ServiceResult<List<ProjectMemberResponse>>> GetMembersAsync(int projectId, CancellationToken cancellationToken)
     {
@@ -26,7 +28,8 @@ public class ProjectMemberService(
         if (access.Result is not null) return ServiceResult<List<ProjectMemberResponse>>.Fail(access.Result.ErrorMessages!, access.Result.Status);
 
         var members = await projectMemberRepository.GetMembersByProjectIdAsync(projectId, cancellationToken);
-        return ServiceResult<List<ProjectMemberResponse>>.Success(members.Select(Map).ToList());
+        return ServiceResult<List<ProjectMemberResponse>>.Success(
+            mapper.Map<List<ProjectMemberResponse>>(members));
     }
 
     public async Task<ServiceResult<ProjectMemberResponse>> AddMemberAsync(int projectId, AddProjectMemberRequest request, CancellationToken cancellationToken)
@@ -66,7 +69,9 @@ public class ProjectMemberService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var saved = await projectMemberRepository.GetMemberAsync(projectId, request.UserId, cancellationToken);
-        return ServiceResult<ProjectMemberResponse>.Success(Map(saved ?? member), HttpStatusCode.Created);
+        return ServiceResult<ProjectMemberResponse>.Success(
+            mapper.Map<ProjectMemberResponse>(saved ?? member),
+            HttpStatusCode.Created);
     }
 
     public async Task<ServiceResult> UpdateMemberRoleAsync(int projectId, int userId, UpdateProjectMemberRoleRequest request, CancellationToken cancellationToken)
@@ -148,15 +153,6 @@ public class ProjectMemberService(
     {
         return workspaceMember.Role == Role.Owner ||
                await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken);
-    }
-
-    private static ProjectMemberResponse Map(ProjectMember member)
-    {
-        return new ProjectMemberResponse(
-            member.UserId,
-            member.User?.Email ?? string.Empty,
-            member.Role,
-            member.JoinedAt);
     }
 
     private sealed record ProjectAccess(ProjectEntity Project, WorkspaceMember WorkspaceMember, ServiceResult? Result)
