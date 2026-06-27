@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using FluentValidation;
+using TaskPilot.Application.Authorization;
 using TaskPilot.Application.Features.Auth.Services;
 using TaskPilot.Application.Features.Comments.Services;
 using TaskPilot.Application.Features.Dashboard.Services;
@@ -18,7 +20,11 @@ public static class ApplicationExtensions
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddAutoMapper(_ => { }, typeof(ApplicationMappingProfile).Assembly);
+        services.AddValidatorsFromAssembly(typeof(ApplicationExtensions).Assembly);
+        services.AddScoped<IAccessControlService, AccessControlService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+        services.AddScoped<IAuthResponseFactory, AuthResponseFactory>();
         services.AddScoped<IWorkspaceService, WorkspaceService>();
         services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();
         services.AddScoped<IProjectService, ProjectService>();

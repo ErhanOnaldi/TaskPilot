@@ -3,14 +3,16 @@ using System.Net;
 using AutoMapper;
 using Microsoft.Extensions.Logging.Abstractions;
 using TaskPilot.Application;
+using TaskPilot.Application.Authorization;
 using TaskPilot.Application.Features.Workspace.Dtos;
 using TaskPilot.Application.Features.Workspace.Services;
-using TaskPilot.Application.Features.Workspace.Validators;
 using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
+using TaskPilot.Application.Interfaces.Persistence.Project;
 using TaskPilot.Application.Interfaces.Persistence.Workspace;
 using TaskPilot.Application.Mappings;
 using TaskPilot.Domain.Entities;
+using ProjectEntity = TaskPilot.Domain.Entities.Project;
 
 namespace TaskPilot.Application.Tests;
 
@@ -76,9 +78,13 @@ public class WorkspaceServiceTests
         return new WorkspaceService(
             new FakeCurrentUserService(currentUserId),
             repository,
+            new AccessControlService(
+                new FakeCurrentUserService(currentUserId),
+                repository,
+                new FakeWorkspaceMemberRepository(repository),
+                new FakeProjectRepository(),
+                new FakeProjectMemberRepository()),
             new FakeUnitOfWork(),
-            new CreateWorkspaceRequestValidator(),
-            new UpdateWorkspaceRequestValidator(),
             CreateMapper());
     }
 
@@ -170,5 +176,118 @@ public class WorkspaceServiceTests
         {
             Workspaces.Remove(entity);
         }
+    }
+
+    private sealed class FakeWorkspaceMemberRepository(FakeWorkspaceRepository workspaceRepository) : IWorkspaceMemberRepository
+    {
+        public Task<List<WorkspaceMember>> GetMembersByWorkspaceIdAsync(int workspaceId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(workspaceRepository.Workspaces
+                .Where(workspace => workspace.Id == workspaceId)
+                .SelectMany(workspace => workspace.Members)
+                .ToList());
+        }
+
+        public Task<WorkspaceMember?> GetMemberAsync(int workspaceId, int userId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(workspaceRepository.Workspaces
+                .Where(workspace => workspace.Id == workspaceId)
+                .SelectMany(workspace => workspace.Members)
+                .FirstOrDefault(member => member.UserId == userId));
+        }
+
+        public Task<bool> IsWorkspaceMemberAsync(int workspaceId, int userId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(workspaceRepository.Workspaces.Any(workspace =>
+                workspace.Id == workspaceId &&
+                workspace.Members.Any(member => member.UserId == userId)));
+        }
+
+        public Task<bool> IsWorkspaceOwnerAsync(int workspaceId, int userId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(workspaceRepository.Workspaces.Any(workspace =>
+                workspace.Id == workspaceId &&
+                workspace.Members.Any(member => member.UserId == userId && member.Role == Role.Owner)));
+        }
+
+        public Task<int> CountOwnersAsync(int workspaceId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(workspaceRepository.Workspaces
+                .Where(workspace => workspace.Id == workspaceId)
+                .SelectMany(workspace => workspace.Members)
+                .Count(member => member.Role == Role.Owner));
+        }
+
+        public Task<List<WorkspaceMember>> GetAllAsync()
+        {
+            return Task.FromResult(workspaceRepository.Workspaces.SelectMany(workspace => workspace.Members).ToList());
+        }
+
+        public Task<List<WorkspaceMember>> GetAllPagedAsync(int pageNumber, int pageSize)
+        {
+            return GetAllAsync();
+        }
+
+        public IQueryable<WorkspaceMember> Where(Expression<Func<WorkspaceMember, bool>> predicate)
+        {
+            return workspaceRepository.Workspaces.SelectMany(workspace => workspace.Members).AsQueryable().Where(predicate);
+        }
+
+        public ValueTask<WorkspaceMember?> GetByIdAsync(int id)
+        {
+            return ValueTask.FromResult(workspaceRepository.Workspaces.SelectMany(workspace => workspace.Members).FirstOrDefault(member => member.Id == id));
+        }
+
+        public ValueTask AddAsync(WorkspaceMember entity)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        public Task<bool> AnyAsync(Expression<Func<WorkspaceMember, bool>> predicate)
+        {
+            return Task.FromResult(Where(predicate).Any());
+        }
+
+        public void Update(WorkspaceMember entity)
+        {
+        }
+
+        public void Delete(WorkspaceMember entity)
+        {
+        }
+    }
+
+    private sealed class FakeProjectRepository : IProjectRepository
+    {
+        public Task<List<ProjectEntity>> GetProjectsByWorkspaceIdAsync(int workspaceId, CancellationToken cancellationToken) => Task.FromResult(new List<ProjectEntity>());
+        public Task<ProjectEntity?> GetProjectByIdAsync(int projectId, CancellationToken cancellationToken) => Task.FromResult<ProjectEntity?>(null);
+        public Task<ProjectEntity?> GetProjectForUpdateAsync(int projectId, CancellationToken cancellationToken) => Task.FromResult<ProjectEntity?>(null);
+        public Task<bool> ExistsByNameInWorkspaceAsync(int workspaceId, string name, CancellationToken cancellationToken) => Task.FromResult(false);
+        public Task<bool> ExistsByNameInWorkspaceExceptProjectAsync(int workspaceId, int projectId, string name, CancellationToken cancellationToken) => Task.FromResult(false);
+        public Task<List<ProjectEntity>> GetAllAsync() => Task.FromResult(new List<ProjectEntity>());
+        public Task<List<ProjectEntity>> GetAllPagedAsync(int pageNumber, int pageSize) => Task.FromResult(new List<ProjectEntity>());
+        public IQueryable<ProjectEntity> Where(Expression<Func<ProjectEntity, bool>> predicate) => new List<ProjectEntity>().AsQueryable().Where(predicate);
+        public ValueTask<ProjectEntity?> GetByIdAsync(int id) => ValueTask.FromResult<ProjectEntity?>(null);
+        public ValueTask AddAsync(ProjectEntity entity) => ValueTask.CompletedTask;
+        public Task<bool> AnyAsync(Expression<Func<ProjectEntity, bool>> predicate) => Task.FromResult(false);
+        public void Update(ProjectEntity entity) { }
+        public void Delete(ProjectEntity entity) { }
+    }
+
+    private sealed class FakeProjectMemberRepository : IProjectMemberRepository
+    {
+        public Task<List<ProjectMember>> GetMembersByProjectIdAsync(int projectId, CancellationToken cancellationToken) => Task.FromResult(new List<ProjectMember>());
+        public Task<ProjectMember?> GetMemberAsync(int projectId, int userId, CancellationToken cancellationToken) => Task.FromResult<ProjectMember?>(null);
+        public Task<bool> IsProjectMemberAsync(int projectId, int userId, CancellationToken cancellationToken) => Task.FromResult(false);
+        public Task<bool> IsProjectManagerAsync(int projectId, int userId, CancellationToken cancellationToken) => Task.FromResult(false);
+        public Task<int> CountProjectManagersAsync(int projectId, CancellationToken cancellationToken) => Task.FromResult(0);
+        public Task<List<ProjectMember>> GetAllAsync() => Task.FromResult(new List<ProjectMember>());
+        public Task<List<ProjectMember>> GetAllPagedAsync(int pageNumber, int pageSize) => Task.FromResult(new List<ProjectMember>());
+        public IQueryable<ProjectMember> Where(Expression<Func<ProjectMember, bool>> predicate) => new List<ProjectMember>().AsQueryable().Where(predicate);
+        public ValueTask<ProjectMember?> GetByIdAsync(int id) => ValueTask.FromResult<ProjectMember?>(null);
+        public ValueTask AddAsync(ProjectMember entity) => ValueTask.CompletedTask;
+        public Task<bool> AnyAsync(Expression<Func<ProjectMember, bool>> predicate) => Task.FromResult(false);
+        public void Update(ProjectMember entity) { }
+        public void Delete(ProjectMember entity) { }
     }
 }

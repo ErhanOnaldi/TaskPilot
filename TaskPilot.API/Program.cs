@@ -1,25 +1,26 @@
 using System.Text;
-using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using TaskPilot.API.ExceptionHandling;
 using TaskPilot.API.Extensions;
+using TaskPilot.API.Filters;
 using TaskPilot.Application.Extensions;
-using TaskPilot.Application.Features.Auth.Services;
 using TaskPilot.Domain.Options;
 using TaskPilot.Infrastructure.Extensions;
 using TaskPilot.Persistence.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddScoped<FluentValidationActionFilter>();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.AddService<FluentValidationActionFilter>();
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerExtension();
 builder.Services.AddPersistence(builder.Configuration);
 builder.Services.AddInfrastructure();
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddValidatorsFromAssembly(typeof(IAuthService).Assembly);
 builder.Services.AddApplication();
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));

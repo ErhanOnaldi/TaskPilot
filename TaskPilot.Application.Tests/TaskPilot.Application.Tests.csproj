@@ -24,6 +24,7 @@
     <ProjectReference Include="..\TaskPilot.Application\TaskPilot.Application.csproj" />
     <ProjectReference Include="..\TaskPilot.Infrastructure\TaskPilot.Infrastructure.csproj" />
     <ProjectReference Include="..\TaskPilot.Persistence\TaskPilot.Persistence.csproj" />
+    <ProjectReference Include="..\TaskPilot.API\TaskPilot.API.csproj" />
   </ItemGroup>
 
   <ItemGroup>

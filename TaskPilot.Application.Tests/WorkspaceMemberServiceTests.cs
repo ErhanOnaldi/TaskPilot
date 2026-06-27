@@ -3,9 +3,9 @@ using System.Net;
 using AutoMapper;
 using Microsoft.Extensions.Logging.Abstractions;
 using TaskPilot.Application;
+using TaskPilot.Application.Authorization;
 using TaskPilot.Application.Features.WorkspaceMembers.Dtos;
 using TaskPilot.Application.Features.WorkspaceMembers.Services;
-using TaskPilot.Application.Features.WorkspaceMembers.Validators;
 using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.User;
@@ -89,12 +89,9 @@ public class WorkspaceMemberServiceTests
     {
         return new WorkspaceMemberService(
             new FakeUnitOfWork(),
-            new FakeCurrentUserService(currentUserId),
-            workspaceRepository,
+            new FakeAccessControlService(workspaceRepository, memberRepository, currentUserId),
             userRepository,
             memberRepository,
-            new AddWorkspaceMemberRequestValidator(),
-            new UpdateWorkspaceMemberRoleRequestValidator(),
             CreateMapper());
     }
 
@@ -117,6 +114,52 @@ public class WorkspaceMemberServiceTests
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(1);
+        }
+    }
+
+    private sealed class FakeAccessControlService(
+        FakeWorkspaceRepository workspaceRepository,
+        FakeWorkspaceMemberRepository memberRepository,
+        int currentUserId) : IAccessControlService
+    {
+        public async Task<WorkspaceAccessResult> AuthorizeWorkspaceAsync(
+            int workspaceId,
+            WorkspaceAccessLevel accessLevel,
+            bool requireActiveWorkspace,
+            CancellationToken cancellationToken)
+        {
+            var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
+            if (workspace is null)
+            {
+                return WorkspaceAccessResult.Fail(ServiceResult.Fail("Workspace not found.", HttpStatusCode.NotFound), currentUserId);
+            }
+
+            if (requireActiveWorkspace && workspace.IsArchived)
+            {
+                return WorkspaceAccessResult.Fail(ServiceResult.Fail("Workspace is archived.", HttpStatusCode.BadRequest), currentUserId);
+            }
+
+            var member = await memberRepository.GetMemberAsync(workspaceId, currentUserId, cancellationToken);
+            if (member is null)
+            {
+                return WorkspaceAccessResult.Fail(ServiceResult.Fail("Workspace not found.", HttpStatusCode.NotFound), currentUserId);
+            }
+
+            if (accessLevel == WorkspaceAccessLevel.Owner && member.Role != Role.Owner)
+            {
+                return WorkspaceAccessResult.Fail(ServiceResult.Fail("Only workspace owner can perform this action.", HttpStatusCode.Forbidden), currentUserId);
+            }
+
+            return new WorkspaceAccessResult(workspace, member, currentUserId, null);
+        }
+
+        public Task<ProjectAccessResult> AuthorizeProjectAsync(
+            int projectId,
+            ProjectAccessLevel accessLevel,
+            bool requireActiveProject,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
         }
     }
 

@@ -13,6 +13,7 @@ public static class InfrastructureExtensions
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IRefreshTokenGenerator, RefreshTokenGenerator>();
         services.AddScoped<IRefreshTokenHasher, RefreshTokenHasher>();
+        services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         

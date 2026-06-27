@@ -1,11 +1,8 @@
 using System.Net;
 using AutoMapper;
-using FluentValidation;
+using TaskPilot.Application.Authorization;
 using TaskPilot.Application.Features.Comments.Dtos;
-using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
-using TaskPilot.Application.Interfaces.Persistence.Project;
-using TaskPilot.Application.Interfaces.Persistence.Workspace;
 using TaskPilot.Domain.Entities;
 
 namespace TaskPilot.Application.Features.Comments.Services;
@@ -13,21 +10,23 @@ namespace TaskPilot.Application.Features.Comments.Services;
 public class CommentService(
     IGenericRepository<Comment> commentRepository,
     IGenericRepository<TaskItem> taskRepository,
-    IProjectRepository projectRepository,
-    IProjectMemberRepository projectMemberRepository,
-    IWorkspaceMemberRepository workspaceMemberRepository,
     IUnitOfWork unitOfWork,
-    ICurrentUserService currentUserService,
-    IValidator<CreateCommentRequest> createValidator,
-    IValidator<UpdateCommentRequest> updateValidator,
+    IAccessControlService accessControlService,
     IMapper mapper) : ICommentService
 {
     public async Task<ServiceResult<List<CommentResponse>>> GetCommentsAsync(int taskId, CancellationToken cancellationToken)
     {
         var task = await taskRepository.GetByIdAsync(taskId);
         if (task is null) return ServiceResult<List<CommentResponse>>.Fail("Task not found.", HttpStatusCode.NotFound);
-        var access = await EnsureProjectReadableAsync(task.ProjectId, cancellationToken);
-        if (access is not null) return ServiceResult<List<CommentResponse>>.Fail(access.ErrorMessages!, access.Status);
+        var access = await accessControlService.AuthorizeProjectAsync(
+            task.ProjectId,
+            ProjectAccessLevel.Read,
+            requireActiveProject: false,
+            cancellationToken);
+        if (access.Failure is not null)
+        {
+            return ServiceResult<List<CommentResponse>>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
+        }
 
         var comments = commentRepository.Where(x => x.TaskId == taskId).OrderBy(x => x.CreatedAt).ToList();
         return ServiceResult<List<CommentResponse>>.Success(mapper.Map<List<CommentResponse>>(comments));
@@ -35,19 +34,25 @@ public class CommentService(
 
     public async Task<ServiceResult<CommentResponse>> CreateCommentAsync(int taskId, CreateCommentRequest request, CancellationToken cancellationToken)
     {
-        var validation = await createValidator.ValidateAsync(request, cancellationToken);
-        if (!validation.IsValid) return ServiceResult<CommentResponse>.Fail(validation.Errors.Select(x => x.ErrorMessage).ToList(), HttpStatusCode.BadRequest);
-
         var task = await taskRepository.GetByIdAsync(taskId);
         if (task is null) return ServiceResult<CommentResponse>.Fail("Task not found.", HttpStatusCode.NotFound);
-        var access = await EnsureProjectParticipantAsync(task.ProjectId, cancellationToken);
-        if (access is not null) return ServiceResult<CommentResponse>.Fail(access.ErrorMessages!, access.Status);
+        var access = await accessControlService.AuthorizeProjectAsync(
+            task.ProjectId,
+            ProjectAccessLevel.Participant,
+            requireActiveProject: true,
+            cancellationToken);
+        if (access.Failure is not null)
+        {
+            return access.Failure.Status == HttpStatusCode.Forbidden
+                ? ServiceResult<CommentResponse>.Fail("Only project members can comment.", HttpStatusCode.Forbidden)
+                : ServiceResult<CommentResponse>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
+        }
 
         var now = DateTime.UtcNow;
         var comment = new Comment
         {
             TaskId = taskId,
-            UserId = currentUserService.GetRequiredUserId(),
+            UserId = access.CurrentUserId,
             Content = request.Content.Trim(),
             CreatedAt = now,
             UpdatedAt = now
@@ -59,18 +64,31 @@ public class CommentService(
 
     public async Task<ServiceResult> UpdateCommentAsync(int commentId, UpdateCommentRequest request, CancellationToken cancellationToken)
     {
-        var validation = await updateValidator.ValidateAsync(request, cancellationToken);
-        if (!validation.IsValid) return ServiceResult.Fail(validation.Errors.Select(x => x.ErrorMessage).ToList(), HttpStatusCode.BadRequest);
-
         var comment = await commentRepository.GetByIdAsync(commentId);
         if (comment is null) return ServiceResult.Fail("Comment not found.", HttpStatusCode.NotFound);
         var task = await taskRepository.GetByIdAsync(comment.TaskId);
         if (task is null) return ServiceResult.Fail("Task not found.", HttpStatusCode.NotFound);
 
-        var canManage = await CanManageProjectAsync(task.ProjectId, cancellationToken);
-        if (comment.UserId != currentUserService.GetRequiredUserId() && !canManage)
+        var access = await accessControlService.AuthorizeProjectAsync(
+            task.ProjectId,
+            ProjectAccessLevel.Read,
+            requireActiveProject: true,
+            cancellationToken);
+        if (access.Failure is not null) return access.Failure;
+
+        if (comment.UserId != access.CurrentUserId)
         {
-            return ServiceResult.Fail("Only comment author, workspace owner, or project manager can update comment.", HttpStatusCode.Forbidden);
+            var manageAccess = await accessControlService.AuthorizeProjectAsync(
+                task.ProjectId,
+                ProjectAccessLevel.Manage,
+                requireActiveProject: true,
+                cancellationToken);
+            if (manageAccess.Failure is not null)
+            {
+                return manageAccess.Failure.Status == HttpStatusCode.Forbidden
+                    ? ServiceResult.Fail("Only comment author, workspace owner, or project manager can update comment.", HttpStatusCode.Forbidden)
+                    : manageAccess.Failure;
+            }
         }
 
         comment.Content = request.Content.Trim();
@@ -86,53 +104,30 @@ public class CommentService(
         var task = await taskRepository.GetByIdAsync(comment.TaskId);
         if (task is null) return ServiceResult.Fail("Task not found.", HttpStatusCode.NotFound);
 
-        var canManage = await CanManageProjectAsync(task.ProjectId, cancellationToken);
-        if (comment.UserId != currentUserService.GetRequiredUserId() && !canManage)
+        var access = await accessControlService.AuthorizeProjectAsync(
+            task.ProjectId,
+            ProjectAccessLevel.Read,
+            requireActiveProject: true,
+            cancellationToken);
+        if (access.Failure is not null) return access.Failure;
+
+        if (comment.UserId != access.CurrentUserId)
         {
-            return ServiceResult.Fail("Only comment author, workspace owner, or project manager can delete comment.", HttpStatusCode.Forbidden);
+            var manageAccess = await accessControlService.AuthorizeProjectAsync(
+                task.ProjectId,
+                ProjectAccessLevel.Manage,
+                requireActiveProject: true,
+                cancellationToken);
+            if (manageAccess.Failure is not null)
+            {
+                return manageAccess.Failure.Status == HttpStatusCode.Forbidden
+                    ? ServiceResult.Fail("Only comment author, workspace owner, or project manager can delete comment.", HttpStatusCode.Forbidden)
+                    : manageAccess.Failure;
+            }
         }
 
         commentRepository.Delete(comment);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ServiceResult.Success(HttpStatusCode.NoContent);
     }
-
-    private async Task<ServiceResult?> EnsureProjectReadableAsync(int projectId, CancellationToken cancellationToken)
-    {
-        var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
-        if (project is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
-        if (!await workspaceMemberRepository.IsWorkspaceMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken))
-        {
-            return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
-        }
-        return null;
-    }
-
-    private async Task<ServiceResult?> EnsureProjectParticipantAsync(int projectId, CancellationToken cancellationToken)
-    {
-        var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
-        if (project is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
-        if (project.Status == ProjectStatus.Archived) return ServiceResult.Fail("Project is archived.", HttpStatusCode.BadRequest);
-        if (!await workspaceMemberRepository.IsWorkspaceMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken))
-        {
-            return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
-        }
-        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken);
-        if (workspaceMember?.Role == Role.Owner) return null;
-        if (!await projectMemberRepository.IsProjectMemberAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken))
-        {
-            return ServiceResult.Fail("Only project members can comment.", HttpStatusCode.Forbidden);
-        }
-        return null;
-    }
-
-    private async Task<bool> CanManageProjectAsync(int projectId, CancellationToken cancellationToken)
-    {
-        var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
-        if (project is null) return false;
-        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken);
-        return workspaceMember?.Role == Role.Owner ||
-               await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken);
-    }
-
 }

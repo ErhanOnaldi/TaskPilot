@@ -1,8 +1,7 @@
 using System.Net;
 using AutoMapper;
-using FluentValidation;
+using TaskPilot.Application.Authorization;
 using TaskPilot.Application.Features.WorkspaceMembers.Dtos;
-using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.User;
 using TaskPilot.Application.Interfaces.Persistence.Workspace;
@@ -12,27 +11,21 @@ namespace TaskPilot.Application.Features.WorkspaceMembers.Services;
 
 public class WorkspaceMemberService(
     IUnitOfWork unitOfWork,
-    ICurrentUserService currentUserService,
-    IWorkspaceRepository workspaceRepository,
+    IAccessControlService accessControlService,
     IUserRepository userRepository,
     IWorkspaceMemberRepository workspaceMemberRepository,
-    IValidator<AddWorkspaceMemberRequest> createValidator,
-    IValidator<UpdateWorkspaceMemberRoleRequest> updateValidator,
     IMapper mapper) : IWorkspaceMemberService
 {
     public async Task<ServiceResult<List<WorkspaceMemberResponse>>> GetMembersAsync(int workspaceId, CancellationToken cancellationToken)
     {
-        var currentUserId = currentUserService.GetRequiredUserId();
-        var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
-        if (workspace == null)
+        var access = await accessControlService.AuthorizeWorkspaceAsync(
+            workspaceId,
+            WorkspaceAccessLevel.Member,
+            requireActiveWorkspace: false,
+            cancellationToken);
+        if (access.Failure is not null)
         {
-            return ServiceResult<List<WorkspaceMemberResponse>>.Fail("Workspace not found",HttpStatusCode.NotFound);
-        }
-
-        var isMember = await workspaceMemberRepository.IsWorkspaceMemberAsync(workspaceId, currentUserId, cancellationToken);
-        if (!isMember)
-        {
-            return ServiceResult<List<WorkspaceMemberResponse>>.Fail("Workspace not found", HttpStatusCode.NotFound);
+            return ServiceResult<List<WorkspaceMemberResponse>>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
         }
 
         var members = await workspaceMemberRepository.GetMembersByWorkspaceIdAsync(workspaceId, cancellationToken);
@@ -42,28 +35,18 @@ public class WorkspaceMemberService(
 
     public async Task<ServiceResult<WorkspaceMemberResponse>> AddMemberAsync(int workspaceId, AddWorkspaceMemberRequest request, CancellationToken cancellationToken)
     {
-        var validationResult = await createValidator.ValidateAsync(request, cancellationToken);
-        if (!validationResult.IsValid)
+        var access = await accessControlService.AuthorizeWorkspaceAsync(
+            workspaceId,
+            WorkspaceAccessLevel.Owner,
+            requireActiveWorkspace: true,
+            cancellationToken);
+        if (access.Failure is not null)
         {
-            return ServiceResult<WorkspaceMemberResponse>.Fail(
-                validationResult.Errors.Select(x => x.ErrorMessage).ToList());
-        }
-        var currentUserId = currentUserService.GetRequiredUserId();
-        var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
-        if (workspace == null)
-        {
-            return ServiceResult<WorkspaceMemberResponse>.Fail("Workspace not found", HttpStatusCode.NotFound);
+            return access.Failure.Status == HttpStatusCode.Forbidden
+                ? ServiceResult<WorkspaceMemberResponse>.Fail("Only workspace owner can add member.", HttpStatusCode.Forbidden)
+                : ServiceResult<WorkspaceMemberResponse>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
         }
 
-        if (workspace.IsArchived)
-        {
-            return ServiceResult<WorkspaceMemberResponse>.Fail("Workspace is archived.");
-        }
-        var isCurrentUserOwner = await workspaceMemberRepository.IsWorkspaceOwnerAsync(workspaceId, currentUserId, cancellationToken);
-        if (!isCurrentUserOwner)
-        {
-            return ServiceResult<WorkspaceMemberResponse>.Fail("Only workspace owner can add member.", HttpStatusCode.Forbidden);
-        }
         var userToAdd = await userRepository.GetByIdAsync(request.UserId);
         if (userToAdd == null)
         {
@@ -95,29 +78,18 @@ public class WorkspaceMemberService(
     public async Task<ServiceResult> UpdateMemberRoleAsync(int workspaceId, int userId, UpdateWorkspaceMemberRoleRequest request,
         CancellationToken cancellationToken)
     {
-        var validationResult = await updateValidator.ValidateAsync(request, cancellationToken);
-        if (!validationResult.IsValid)
+        var access = await accessControlService.AuthorizeWorkspaceAsync(
+            workspaceId,
+            WorkspaceAccessLevel.Owner,
+            requireActiveWorkspace: true,
+            cancellationToken);
+        if (access.Failure is not null)
         {
-            return ServiceResult.Fail(
-                validationResult.Errors.Select(x => x.ErrorMessage).ToList());
-        }
-        var currentUserId = currentUserService.GetRequiredUserId();
-        var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
-        if (workspace == null)
-        {
-            return ServiceResult.Fail("Workspace not found.", HttpStatusCode.NotFound);
-        }
-
-        if (workspace.IsArchived)
-        {
-            return ServiceResult.Fail("Workspace is archived.");
+            return access.Failure.Status == HttpStatusCode.Forbidden
+                ? ServiceResult.Fail("Only workspace owner can update member role.", HttpStatusCode.Forbidden)
+                : access.Failure;
         }
 
-        var isCurrentUserOwner = await workspaceMemberRepository.IsWorkspaceOwnerAsync(workspaceId, currentUserId, cancellationToken);
-        if (!isCurrentUserOwner)
-        {
-            return ServiceResult.Fail("Only workspace owner can update member role.", HttpStatusCode.Forbidden);
-        }
         var memberToUpdate = await workspaceMemberRepository.GetMemberAsync(workspaceId, userId, cancellationToken);
         if (memberToUpdate == null)
         {
@@ -139,22 +111,16 @@ public class WorkspaceMemberService(
 
     public async Task<ServiceResult> RemoveMemberAsync(int workspaceId, int userId, CancellationToken cancellationToken)
     {
-        var currentUserId = currentUserService.GetRequiredUserId();
-        var workspace = await workspaceRepository.GetByIdAsync(workspaceId);
-        if (workspace == null)
+        var access = await accessControlService.AuthorizeWorkspaceAsync(
+            workspaceId,
+            WorkspaceAccessLevel.Owner,
+            requireActiveWorkspace: true,
+            cancellationToken);
+        if (access.Failure is not null)
         {
-            return ServiceResult.Fail("Workspace not found.", HttpStatusCode.NotFound);
-        }
-
-        if (workspace.IsArchived)
-        {
-            return ServiceResult.Fail("Workspace is archived.");
-        }
-
-        var isCurrentUserOwner = await workspaceMemberRepository.IsWorkspaceOwnerAsync(workspaceId, currentUserId, cancellationToken);
-        if (!isCurrentUserOwner)
-        {
-            return ServiceResult.Fail("Only workspace owner can remove member.", HttpStatusCode.Forbidden);
+            return access.Failure.Status == HttpStatusCode.Forbidden
+                ? ServiceResult.Fail("Only workspace owner can remove member.", HttpStatusCode.Forbidden)
+                : access.Failure;
         }
 
         var memberToDelete = await workspaceMemberRepository.GetMemberAsync(workspaceId, userId, cancellationToken);

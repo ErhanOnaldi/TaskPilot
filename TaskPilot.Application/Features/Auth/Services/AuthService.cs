@@ -1,41 +1,26 @@
 using System.Net;
 using AutoMapper;
-using FluentValidation;
-using Microsoft.Extensions.Options;
 using TaskPilot.Application.Features.Auth.Dtos;
+using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
-using TaskPilot.Application.Interfaces.Persistence.Auth;
 using TaskPilot.Application.Interfaces.Persistence.User;
 using TaskPilot.Application.Interfaces.Security;
 using TaskPilot.Domain.Entities;
-using TaskPilot.Domain.Options;
 
 namespace TaskPilot.Application.Features.Auth.Services;
 
 public class AuthService(
     IUserRepository repository,
-    IRefreshTokenRepository refreshTokenRepository,
     IUnitOfWork unitOfWork,
     IPasswordHasher passwordHasher,
     IJwtTokenGenerator jwtTokenGenerator,
-    IRefreshTokenGenerator refreshTokenGenerator,
-    IRefreshTokenHasher refreshTokenHasher,
-    IValidator<RegisterRequest> registerValidator,
-    IValidator<LoginRequest> loginValidator,
-    IValidator<RefreshTokenRequest> refreshTokenValidator,
-    IOptions<JwtOptions> jwtOptions,
+    IRefreshTokenService refreshTokenService,
+    IAuthResponseFactory authResponseFactory,
+    ICurrentUserService currentUserService,
     IMapper mapper) : IAuthService
 {
     public async Task<ServiceResult<AuthResponse>> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
     {
-        var validationResult = await registerValidator.ValidateAsync(request, cancellationToken);
-        if (!validationResult.IsValid)
-        {
-            return ServiceResult<AuthResponse>.Fail(
-                validationResult.Errors.Select(x => x.ErrorMessage).ToList(),
-                HttpStatusCode.BadRequest);
-        }
-
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
         var isExist = await repository.GetByEmailAsync(normalizedEmail, cancellationToken);
         if (isExist is not null)
@@ -48,7 +33,7 @@ public class AuthService(
             Email = normalizedEmail,
             PasswordHash = passwordHash,
         };
-        var refreshToken = CreateRefreshToken(user);
+        var refreshToken = refreshTokenService.CreateForUser(user);
         user.RefreshTokens.Add(refreshToken.Entity);
 
         await repository.AddAsync(user);
@@ -56,21 +41,13 @@ public class AuthService(
 
         var authToken = jwtTokenGenerator.Generate(user);
         return ServiceResult<AuthResponse>.Success(
-            CreateAuthResponse(user, authToken, refreshToken),
+            authResponseFactory.Create(user, authToken, refreshToken),
             HttpStatusCode.Created);
 
     }
 
     public async Task<ServiceResult<AuthResponse>> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
     {
-        var validationResult = await loginValidator.ValidateAsync(request, cancellationToken);
-        if (!validationResult.IsValid)
-        {
-            return ServiceResult<AuthResponse>.Fail(
-                validationResult.Errors.Select(x => x.ErrorMessage).ToList(),
-                HttpStatusCode.BadRequest);
-        }
-
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
         var user = await repository.GetByEmailAsync(normalizedEmail, cancellationToken);
         if (user == null)
@@ -82,16 +59,16 @@ public class AuthService(
         {
             return ServiceResult<AuthResponse>.Fail("Email or password is incorrect.", HttpStatusCode.Unauthorized);
         }
-        var refreshToken = CreateRefreshToken(user);
-        await refreshTokenRepository.AddAsync(refreshToken.Entity);
+        var refreshToken = await refreshTokenService.CreateAndAddForUserAsync(user);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var authToken = jwtTokenGenerator.Generate(user);
-        return ServiceResult<AuthResponse>.Success(CreateAuthResponse(user, authToken, refreshToken));
+        return ServiceResult<AuthResponse>.Success(authResponseFactory.Create(user, authToken, refreshToken));
     }
 
-    public async Task<ServiceResult<AuthUserResponse>> GetMeAsync(int userId, CancellationToken cancellationToken)
+    public async Task<ServiceResult<AuthUserResponse>> GetMeAsync(CancellationToken cancellationToken)
     {
+        var userId = currentUserService.GetRequiredUserId();
         var user = await repository.GetByIdAsync(userId);
         if (user is null)
         {
@@ -103,103 +80,41 @@ public class AuthService(
 
     public async Task<ServiceResult<AuthResponse>> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken)
     {
-        var validationResult = await refreshTokenValidator.ValidateAsync(request, cancellationToken);
-        if (!validationResult.IsValid)
+        var rotationResult = await refreshTokenService.RotateAsync(request.RefreshToken, cancellationToken);
+        if (!rotationResult.IsSuccess)
         {
+            if (rotationResult.RequiresSaveChanges)
+            {
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
             return ServiceResult<AuthResponse>.Fail(
-                validationResult.Errors.Select(x => x.ErrorMessage).ToList(),
-                HttpStatusCode.BadRequest);
+                MapRefreshTokenFailureMessage(rotationResult.FailureReason),
+                HttpStatusCode.Unauthorized);
         }
 
-        var tokenHash = refreshTokenHasher.Hash(request.RefreshToken);
-        var existingToken = await refreshTokenRepository.GetByTokenHashAsync(tokenHash, cancellationToken);
-        if (existingToken is null)
-        {
-            return ServiceResult<AuthResponse>.Fail("Invalid refresh token.", HttpStatusCode.Unauthorized);
-        }
-
-        var now = DateTime.UtcNow;
-        if (existingToken.IsRevoked)
-        {
-            await refreshTokenRepository.RevokeActiveTokensForUserAsync(existingToken.UserId, now, cancellationToken);
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-
-            return ServiceResult<AuthResponse>.Fail("Invalid refresh token.", HttpStatusCode.Unauthorized);
-        }
-
-        if (existingToken.IsExpired)
-        {
-            existingToken.RevokedAtUtc = now;
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-
-            return ServiceResult<AuthResponse>.Fail("Refresh token has expired.", HttpStatusCode.Unauthorized);
-        }
-
-        if (existingToken.User is null)
-        {
-            return ServiceResult<AuthResponse>.Fail("User not found.", HttpStatusCode.Unauthorized);
-        }
-
-        var newRefreshToken = CreateRefreshToken(existingToken.User);
-        existingToken.RevokedAtUtc = now;
-        existingToken.ReplacedByTokenHash = newRefreshToken.Entity.TokenHash;
-
-        await refreshTokenRepository.AddAsync(newRefreshToken.Entity);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var authToken = jwtTokenGenerator.Generate(existingToken.User);
-        return ServiceResult<AuthResponse>.Success(CreateAuthResponse(existingToken.User, authToken, newRefreshToken));
+        var authToken = jwtTokenGenerator.Generate(rotationResult.User!);
+        return ServiceResult<AuthResponse>.Success(
+            authResponseFactory.Create(rotationResult.User!, authToken, rotationResult.RefreshToken!));
     }
 
     public async Task<ServiceResult> LogoutAsync(RefreshTokenRequest request, CancellationToken cancellationToken)
     {
-        var validationResult = await refreshTokenValidator.ValidateAsync(request, cancellationToken);
-        if (!validationResult.IsValid)
+        var logoutResult = await refreshTokenService.LogoutAsync(request.RefreshToken, cancellationToken);
+        if (logoutResult.RequiresSaveChanges)
         {
-            return ServiceResult.Fail(
-                validationResult.Errors.Select(x => x.ErrorMessage).ToList(),
-                HttpStatusCode.BadRequest);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
         }
-
-        var tokenHash = refreshTokenHasher.Hash(request.RefreshToken);
-        var existingToken = await refreshTokenRepository.GetByTokenHashAsync(tokenHash, cancellationToken);
-        if (existingToken is null || existingToken.IsRevoked)
-        {
-            return ServiceResult.Success(HttpStatusCode.NoContent);
-        }
-
-        existingToken.RevokedAtUtc = DateTime.UtcNow;
-        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return ServiceResult.Success(HttpStatusCode.NoContent);
     }
 
-    private CreatedRefreshToken CreateRefreshToken(User user)
+    private static string MapRefreshTokenFailureMessage(RefreshTokenRotationFailureReason? reason)
     {
-        var rawToken = refreshTokenGenerator.Generate();
-        var expiresAtUtc = DateTime.UtcNow.AddDays(jwtOptions.Value.RefreshTokenExpirationDays);
-        var tokenHash = refreshTokenHasher.Hash(rawToken);
-
-        return new CreatedRefreshToken(
-            rawToken,
-            new RefreshToken
-            {
-                UserId = user.Id,
-                TokenHash = tokenHash,
-                CreatedAtUtc = DateTime.UtcNow,
-                ExpiresAtUtc = expiresAtUtc,
-            });
+        return reason == RefreshTokenRotationFailureReason.Expired
+            ? "Refresh token has expired."
+            : "Invalid refresh token.";
     }
-
-    private AuthResponse CreateAuthResponse(User user, AuthToken authToken, CreatedRefreshToken refreshToken)
-    {
-        return new AuthResponse(
-            authToken.AccessToken,
-            authToken.ExpiresAtUtc,
-            refreshToken.RawToken,
-            refreshToken.Entity.ExpiresAtUtc,
-            mapper.Map<AuthUserResponse>(user));
-    }
-
-    private sealed record CreatedRefreshToken(string RawToken, RefreshToken Entity);
 }

@@ -1,28 +1,24 @@
-using System.Net;
+using TaskPilot.Application.Authorization;
 using TaskPilot.Application.Features.Dashboard.Dtos;
-using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
-using TaskPilot.Application.Interfaces.Persistence.Project;
-using TaskPilot.Application.Interfaces.Persistence.Workspace;
 using TaskPilot.Domain.Entities;
 
 namespace TaskPilot.Application.Features.Dashboard.Services;
 
 public class DashboardService(
-    IProjectRepository projectRepository,
-    IWorkspaceMemberRepository workspaceMemberRepository,
     IGenericRepository<TaskItem> taskRepository,
-    ICurrentUserService currentUserService) : IDashboardService
+    IAccessControlService accessControlService) : IDashboardService
 {
     public async Task<ServiceResult<ProjectDashboardResponse>> GetProjectDashboardAsync(int projectId, CancellationToken cancellationToken)
     {
-        var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
-        if (project is null) return ServiceResult<ProjectDashboardResponse>.Fail("Project not found.", HttpStatusCode.NotFound);
-
-        var currentUserId = currentUserService.GetRequiredUserId();
-        if (!await workspaceMemberRepository.IsWorkspaceMemberAsync(project.WorkspaceId, currentUserId, cancellationToken))
+        var access = await accessControlService.AuthorizeProjectAsync(
+            projectId,
+            ProjectAccessLevel.Read,
+            requireActiveProject: false,
+            cancellationToken);
+        if (access.Failure is not null)
         {
-            return ServiceResult<ProjectDashboardResponse>.Fail("Project not found.", HttpStatusCode.NotFound);
+            return ServiceResult<ProjectDashboardResponse>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
         }
 
         var tasks = taskRepository.Where(x => x.ProjectId == projectId).ToList();

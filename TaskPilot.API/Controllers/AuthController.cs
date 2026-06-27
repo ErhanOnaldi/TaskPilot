@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskPilot.Application.Features.Auth.Dtos;
@@ -28,13 +27,7 @@ public class AuthController(IAuthService authService): CustomBaseController
     [HttpGet("me")]
     public async Task<IActionResult> Me(CancellationToken cancellationToken)
     {
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!int.TryParse(userIdClaim, out var userId))
-        {
-            return Unauthorized();
-        }
-
-        var result = await authService.GetMeAsync(userId, cancellationToken);
+        var result = await authService.GetMeAsync(cancellationToken);
         return CreateActionResult(result);
     }
 

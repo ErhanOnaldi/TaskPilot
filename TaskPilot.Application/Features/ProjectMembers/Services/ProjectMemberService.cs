@@ -1,31 +1,32 @@
 using System.Net;
 using AutoMapper;
-using FluentValidation;
+using TaskPilot.Application.Authorization;
 using TaskPilot.Application.Features.ProjectMembers.Dtos;
-using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Project;
 using TaskPilot.Application.Interfaces.Persistence.Workspace;
 using TaskPilot.Domain.Entities;
-using ProjectEntity = TaskPilot.Domain.Entities.Project;
 
 namespace TaskPilot.Application.Features.ProjectMembers.Services;
 
 public class ProjectMemberService(
-    IProjectRepository projectRepository,
     IProjectMemberRepository projectMemberRepository,
-    IWorkspaceRepository workspaceRepository,
     IWorkspaceMemberRepository workspaceMemberRepository,
     IUnitOfWork unitOfWork,
-    ICurrentUserService currentUserService,
-    IValidator<AddProjectMemberRequest> addValidator,
-    IValidator<UpdateProjectMemberRoleRequest> updateValidator,
+    IAccessControlService accessControlService,
     IMapper mapper) : IProjectMemberService
 {
     public async Task<ServiceResult<List<ProjectMemberResponse>>> GetMembersAsync(int projectId, CancellationToken cancellationToken)
     {
-        var access = await LoadProjectAccessAsync(projectId, cancellationToken);
-        if (access.Result is not null) return ServiceResult<List<ProjectMemberResponse>>.Fail(access.Result.ErrorMessages!, access.Result.Status);
+        var access = await accessControlService.AuthorizeProjectAsync(
+            projectId,
+            ProjectAccessLevel.Read,
+            requireActiveProject: false,
+            cancellationToken);
+        if (access.Failure is not null)
+        {
+            return ServiceResult<List<ProjectMemberResponse>>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
+        }
 
         var members = await projectMemberRepository.GetMembersByProjectIdAsync(projectId, cancellationToken);
         return ServiceResult<List<ProjectMemberResponse>>.Success(
@@ -34,20 +35,19 @@ public class ProjectMemberService(
 
     public async Task<ServiceResult<ProjectMemberResponse>> AddMemberAsync(int projectId, AddProjectMemberRequest request, CancellationToken cancellationToken)
     {
-        var validation = await addValidator.ValidateAsync(request, cancellationToken);
-        if (!validation.IsValid)
+        var access = await accessControlService.AuthorizeProjectAsync(
+            projectId,
+            ProjectAccessLevel.Manage,
+            requireActiveProject: true,
+            cancellationToken);
+        if (access.Failure is not null)
         {
-            return ServiceResult<ProjectMemberResponse>.Fail(validation.Errors.Select(x => x.ErrorMessage).ToList(), HttpStatusCode.BadRequest);
+            return access.Failure.Status == HttpStatusCode.Forbidden
+                ? ServiceResult<ProjectMemberResponse>.Fail("Only workspace owner or project manager can add project members.", HttpStatusCode.Forbidden)
+                : ServiceResult<ProjectMemberResponse>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
         }
 
-        var access = await LoadProjectAccessAsync(projectId, cancellationToken);
-        if (access.Result is not null) return ServiceResult<ProjectMemberResponse>.Fail(access.Result.ErrorMessages!, access.Result.Status);
-        if (!await CanManageProjectAsync(projectId, access.WorkspaceMember!, cancellationToken))
-        {
-            return ServiceResult<ProjectMemberResponse>.Fail("Only workspace owner or project manager can add project members.", HttpStatusCode.Forbidden);
-        }
-
-        if (await workspaceMemberRepository.GetMemberAsync(access.Project!.WorkspaceId, request.UserId, cancellationToken) is null)
+        if (await workspaceMemberRepository.GetMemberAsync(access.Project.WorkspaceId, request.UserId, cancellationToken) is null)
         {
             return ServiceResult<ProjectMemberResponse>.Fail("User must be a workspace member before joining project.", HttpStatusCode.BadRequest);
         }
@@ -76,17 +76,16 @@ public class ProjectMemberService(
 
     public async Task<ServiceResult> UpdateMemberRoleAsync(int projectId, int userId, UpdateProjectMemberRoleRequest request, CancellationToken cancellationToken)
     {
-        var validation = await updateValidator.ValidateAsync(request, cancellationToken);
-        if (!validation.IsValid)
+        var access = await accessControlService.AuthorizeProjectAsync(
+            projectId,
+            ProjectAccessLevel.Manage,
+            requireActiveProject: true,
+            cancellationToken);
+        if (access.Failure is not null)
         {
-            return ServiceResult.Fail(validation.Errors.Select(x => x.ErrorMessage).ToList(), HttpStatusCode.BadRequest);
-        }
-
-        var access = await LoadProjectAccessAsync(projectId, cancellationToken);
-        if (access.Result is not null) return access.Result;
-        if (!await CanManageProjectAsync(projectId, access.WorkspaceMember!, cancellationToken))
-        {
-            return ServiceResult.Fail("Only workspace owner or project manager can update project member roles.", HttpStatusCode.Forbidden);
+            return access.Failure.Status == HttpStatusCode.Forbidden
+                ? ServiceResult.Fail("Only workspace owner or project manager can update project member roles.", HttpStatusCode.Forbidden)
+                : access.Failure;
         }
 
         var member = await projectMemberRepository.GetMemberAsync(projectId, userId, cancellationToken);
@@ -108,11 +107,16 @@ public class ProjectMemberService(
 
     public async Task<ServiceResult> RemoveMemberAsync(int projectId, int userId, CancellationToken cancellationToken)
     {
-        var access = await LoadProjectAccessAsync(projectId, cancellationToken);
-        if (access.Result is not null) return access.Result;
-        if (!await CanManageProjectAsync(projectId, access.WorkspaceMember!, cancellationToken))
+        var access = await accessControlService.AuthorizeProjectAsync(
+            projectId,
+            ProjectAccessLevel.Manage,
+            requireActiveProject: true,
+            cancellationToken);
+        if (access.Failure is not null)
         {
-            return ServiceResult.Fail("Only workspace owner or project manager can remove project members.", HttpStatusCode.Forbidden);
+            return access.Failure.Status == HttpStatusCode.Forbidden
+                ? ServiceResult.Fail("Only workspace owner or project manager can remove project members.", HttpStatusCode.Forbidden)
+                : access.Failure;
         }
 
         var member = await projectMemberRepository.GetMemberAsync(projectId, userId, cancellationToken);
@@ -130,36 +134,5 @@ public class ProjectMemberService(
         projectMemberRepository.Delete(member);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ServiceResult.Success(HttpStatusCode.NoContent);
-    }
-
-    private async Task<ProjectAccess> LoadProjectAccessAsync(int projectId, CancellationToken cancellationToken)
-    {
-        var currentUserId = currentUserService.GetRequiredUserId();
-        var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
-        if (project is null) return ProjectAccess.Fail(ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound));
-        if (project.Status == ProjectStatus.Archived) return ProjectAccess.Fail(ServiceResult.Fail("Project is archived.", HttpStatusCode.BadRequest));
-
-        var workspace = await workspaceRepository.GetByIdAsync(project.WorkspaceId);
-        if (workspace is null) return ProjectAccess.Fail(ServiceResult.Fail("Workspace not found.", HttpStatusCode.NotFound));
-        if (workspace.IsArchived) return ProjectAccess.Fail(ServiceResult.Fail("Workspace is archived.", HttpStatusCode.BadRequest));
-
-        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserId, cancellationToken);
-        if (workspaceMember is null) return ProjectAccess.Fail(ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound));
-
-        return new ProjectAccess(project, workspaceMember, null);
-    }
-
-    private async Task<bool> CanManageProjectAsync(int projectId, WorkspaceMember workspaceMember, CancellationToken cancellationToken)
-    {
-        return workspaceMember.Role == Role.Owner ||
-               await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken);
-    }
-
-    private sealed record ProjectAccess(ProjectEntity Project, WorkspaceMember WorkspaceMember, ServiceResult? Result)
-    {
-        public static ProjectAccess Fail(ServiceResult result)
-        {
-            return new ProjectAccess(null!, null!, result);
-        }
     }
 }

@@ -1,11 +1,8 @@
 using System.Net;
 using AutoMapper;
-using FluentValidation;
+using TaskPilot.Application.Authorization;
 using TaskPilot.Application.Features.Labels.Dtos;
-using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
-using TaskPilot.Application.Interfaces.Persistence.Project;
-using TaskPilot.Application.Interfaces.Persistence.Workspace;
 using TaskPilot.Domain.Entities;
 
 namespace TaskPilot.Application.Features.Labels.Services;
@@ -14,18 +11,21 @@ public class LabelService(
     IGenericRepository<Label> labelRepository,
     IGenericRepository<TaskItem> taskRepository,
     IGenericRepository<TaskLabel> taskLabelRepository,
-    IProjectRepository projectRepository,
-    IProjectMemberRepository projectMemberRepository,
-    IWorkspaceMemberRepository workspaceMemberRepository,
     IUnitOfWork unitOfWork,
-    ICurrentUserService currentUserService,
-    IValidator<CreateLabelRequest> createValidator,
+    IAccessControlService accessControlService,
     IMapper mapper) : ILabelService
 {
     public async Task<ServiceResult<List<LabelResponse>>> GetLabelsAsync(int projectId, CancellationToken cancellationToken)
     {
-        var access = await EnsureProjectReadableAsync(projectId, cancellationToken);
-        if (access is not null) return ServiceResult<List<LabelResponse>>.Fail(access.ErrorMessages!, access.Status);
+        var access = await accessControlService.AuthorizeProjectAsync(
+            projectId,
+            ProjectAccessLevel.Read,
+            requireActiveProject: false,
+            cancellationToken);
+        if (access.Failure is not null)
+        {
+            return ServiceResult<List<LabelResponse>>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
+        }
 
         var labels = labelRepository.Where(x => x.ProjectId == projectId).OrderBy(x => x.Name).ToList();
         return ServiceResult<List<LabelResponse>>.Success(mapper.Map<List<LabelResponse>>(labels));
@@ -33,11 +33,17 @@ public class LabelService(
 
     public async Task<ServiceResult<LabelResponse>> CreateLabelAsync(int projectId, CreateLabelRequest request, CancellationToken cancellationToken)
     {
-        var validation = await createValidator.ValidateAsync(request, cancellationToken);
-        if (!validation.IsValid) return ServiceResult<LabelResponse>.Fail(validation.Errors.Select(x => x.ErrorMessage).ToList(), HttpStatusCode.BadRequest);
-
-        var access = await EnsureProjectManageableAsync(projectId, cancellationToken);
-        if (access is not null) return ServiceResult<LabelResponse>.Fail(access.ErrorMessages!, access.Status);
+        var access = await accessControlService.AuthorizeProjectAsync(
+            projectId,
+            ProjectAccessLevel.Manage,
+            requireActiveProject: true,
+            cancellationToken);
+        if (access.Failure is not null)
+        {
+            return access.Failure.Status == HttpStatusCode.Forbidden
+                ? ServiceResult<LabelResponse>.Fail("Only workspace owner or project manager can manage labels.", HttpStatusCode.Forbidden)
+                : ServiceResult<LabelResponse>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
+        }
 
         var name = request.Name.Trim();
         if (labelRepository.Where(x => x.ProjectId == projectId && x.Name == name).Any())
@@ -66,8 +72,17 @@ public class LabelService(
         var label = await labelRepository.GetByIdAsync(labelId);
         if (label is null || label.ProjectId != task.ProjectId) return ServiceResult.Fail("Label not found.", HttpStatusCode.NotFound);
 
-        var access = await EnsureProjectParticipantAsync(task.ProjectId, cancellationToken);
-        if (access is not null) return access;
+        var access = await accessControlService.AuthorizeProjectAsync(
+            task.ProjectId,
+            ProjectAccessLevel.Participant,
+            requireActiveProject: true,
+            cancellationToken);
+        if (access.Failure is not null)
+        {
+            return access.Failure.Status == HttpStatusCode.Forbidden
+                ? ServiceResult.Fail("Only project members can manage task labels.", HttpStatusCode.Forbidden)
+                : access.Failure;
+        }
 
         if (taskLabelRepository.Where(x => x.TaskId == taskId && x.LabelId == labelId).Any())
         {
@@ -83,8 +98,17 @@ public class LabelService(
     {
         var task = await taskRepository.GetByIdAsync(taskId);
         if (task is null) return ServiceResult.Fail("Task not found.", HttpStatusCode.NotFound);
-        var access = await EnsureProjectParticipantAsync(task.ProjectId, cancellationToken);
-        if (access is not null) return access;
+        var access = await accessControlService.AuthorizeProjectAsync(
+            task.ProjectId,
+            ProjectAccessLevel.Participant,
+            requireActiveProject: true,
+            cancellationToken);
+        if (access.Failure is not null)
+        {
+            return access.Failure.Status == HttpStatusCode.Forbidden
+                ? ServiceResult.Fail("Only project members can manage task labels.", HttpStatusCode.Forbidden)
+                : access.Failure;
+        }
 
         var taskLabel = taskLabelRepository.Where(x => x.TaskId == taskId && x.LabelId == labelId).FirstOrDefault();
         if (taskLabel is null) return ServiceResult.Fail("Task label not found.", HttpStatusCode.NotFound);
@@ -93,46 +117,4 @@ public class LabelService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ServiceResult.Success(HttpStatusCode.NoContent);
     }
-
-    private async Task<ServiceResult?> EnsureProjectReadableAsync(int projectId, CancellationToken cancellationToken)
-    {
-        var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
-        if (project is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
-        if (!await workspaceMemberRepository.IsWorkspaceMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken))
-        {
-            return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
-        }
-        return null;
-    }
-
-    private async Task<ServiceResult?> EnsureProjectParticipantAsync(int projectId, CancellationToken cancellationToken)
-    {
-        var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
-        if (project is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
-        if (project.Status == ProjectStatus.Archived) return ServiceResult.Fail("Project is archived.", HttpStatusCode.BadRequest);
-        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken);
-        if (workspaceMember is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
-        if (workspaceMember.Role == Role.Owner) return null;
-        if (!await projectMemberRepository.IsProjectMemberAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken))
-        {
-            return ServiceResult.Fail("Only project members can manage task labels.", HttpStatusCode.Forbidden);
-        }
-        return null;
-    }
-
-    private async Task<ServiceResult?> EnsureProjectManageableAsync(int projectId, CancellationToken cancellationToken)
-    {
-        var project = await projectRepository.GetProjectByIdAsync(projectId, cancellationToken);
-        if (project is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
-        if (project.Status == ProjectStatus.Archived) return ServiceResult.Fail("Project is archived.", HttpStatusCode.BadRequest);
-        var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserService.GetRequiredUserId(), cancellationToken);
-        if (workspaceMember is null) return ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound);
-        if (workspaceMember.Role == Role.Owner) return null;
-        if (!await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserService.GetRequiredUserId(), cancellationToken))
-        {
-            return ServiceResult.Fail("Only workspace owner or project manager can manage labels.", HttpStatusCode.Forbidden);
-        }
-        return null;
-    }
-
 }

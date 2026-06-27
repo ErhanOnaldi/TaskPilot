@@ -3,18 +3,21 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Security;
 using TaskPilot.Domain.Entities;
 using TaskPilot.Domain.Options;
 
 namespace TaskPilot.Infrastructure.Security;
 
-public class JwtTokenGenerator(IOptions<JwtOptions> options): IJwtTokenGenerator
+public class JwtTokenGenerator(
+    IOptions<JwtOptions> options,
+    IDateTimeProvider dateTimeProvider): IJwtTokenGenerator
 {
     public AuthToken Generate(User user)
     {
         var jwtOptions = options.Value;
-        var expiresAtUtc = DateTime.UtcNow.AddMinutes(jwtOptions.AccessTokenExpirationMinutes);
+        var expiresAtUtc = dateTimeProvider.UtcNow.AddMinutes(jwtOptions.AccessTokenExpirationMinutes);
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
