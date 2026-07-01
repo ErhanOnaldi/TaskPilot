@@ -41,7 +41,8 @@ public class WorkspaceRepository : GenericRepository<WorkSpace>, IWorkspaceRepos
         var search = query.Search?.Trim();
         if (!string.IsNullOrWhiteSpace(search))
         {
-            workspaceQuery = workspaceQuery.Where(workspace => workspace.Name.Contains(search));
+            var searchPattern = $"%{search}%";
+            workspaceQuery = workspaceQuery.Where(workspace => EF.Functions.ILike(workspace.Name, searchPattern));
         }
 
         var totalCount = await workspaceQuery.CountAsync(cancellationToken);

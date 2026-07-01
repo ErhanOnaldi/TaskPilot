@@ -46,9 +46,10 @@ public class ProjectRepository : GenericRepository<Project>, IProjectRepository
         var search = query.Search?.Trim();
         if (!string.IsNullOrWhiteSpace(search))
         {
+            var searchPattern = $"%{search}%";
             projectQuery = projectQuery.Where(project =>
-                project.Name.Contains(search) ||
-                (project.Description != null && project.Description.Contains(search)));
+                EF.Functions.ILike(project.Name, searchPattern) ||
+                (project.Description != null && EF.Functions.ILike(project.Description, searchPattern)));
         }
 
         var totalCount = await projectQuery.CountAsync(cancellationToken);

@@ -47,14 +47,7 @@ public class NotificationService(
     public async Task<ServiceResult> MarkAllAsReadAsync(CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId();
-        var notifications = await notificationRepository.GetUnreadNotificationsByUserIdAsync(userId, cancellationToken);
-        foreach (var notification in notifications)
-        {
-            notification.IsRead = true;
-            notification.UpdatedAt = DateTime.UtcNow;
-        }
-
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await notificationRepository.MarkAllAsReadAsync(userId, DateTime.UtcNow, cancellationToken);
         return ServiceResult.Success(HttpStatusCode.NoContent);
     }
 

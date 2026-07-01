@@ -51,6 +51,17 @@ public sealed class NotificationRepository : GenericRepository<Notification>, IN
             .ToListAsync(cancellationToken);
     }
 
+    public Task<int> MarkAllAsReadAsync(int userId, DateTime utcNow, CancellationToken cancellationToken)
+    {
+        return _dbContext.Notifications
+            .Where(notification => notification.UserId == userId && !notification.IsRead)
+            .ExecuteUpdateAsync(
+                updates => updates
+                    .SetProperty(notification => notification.IsRead, true)
+                    .SetProperty(notification => notification.UpdatedAt, utcNow),
+                cancellationToken);
+    }
+
     private static IOrderedQueryable<Notification> ApplySorting(
         IQueryable<Notification> query,
         NotificationQueryParameters parameters)

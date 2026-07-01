@@ -4,14 +4,15 @@ using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Features.Labels.Dtos;
 using TaskPilot.Application.Interfaces.Persistence;
+using TaskPilot.Application.Interfaces.Persistence.Labels;
 using TaskPilot.Domain.Entities;
 
 namespace TaskPilot.Application.Features.Labels.Services;
 
 public class LabelService(
-    IGenericRepository<Label> labelRepository,
+    ILabelRepository labelRepository,
     IGenericRepository<TaskItem> taskRepository,
-    IGenericRepository<TaskLabel> taskLabelRepository,
+    ITaskLabelRepository taskLabelRepository,
     IUnitOfWork unitOfWork,
     IAccessControlService accessControlService,
     IMapper mapper) : ILabelService
@@ -28,7 +29,7 @@ public class LabelService(
             return ServiceResult<List<LabelResponse>>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
         }
 
-        var labels = labelRepository.Where(x => x.ProjectId == projectId).OrderBy(x => x.Name).ToList();
+        var labels = await labelRepository.GetLabelsByProjectIdAsync(projectId, cancellationToken);
         return ServiceResult<List<LabelResponse>>.Success(mapper.Map<List<LabelResponse>>(labels));
     }
 
@@ -47,7 +48,7 @@ public class LabelService(
         }
 
         var name = request.Name.Trim();
-        if (labelRepository.Where(x => x.ProjectId == projectId && x.Name == name).Any())
+        if (await labelRepository.ExistsByNameInProjectAsync(projectId, name, cancellationToken))
         {
             return ServiceResult<LabelResponse>.Fail("Label already exists.", HttpStatusCode.Conflict);
         }
@@ -85,7 +86,7 @@ public class LabelService(
                 : access.Failure;
         }
 
-        if (taskLabelRepository.Where(x => x.TaskId == taskId && x.LabelId == labelId).Any())
+        if (await taskLabelRepository.TaskHasLabelAsync(taskId, labelId, cancellationToken))
         {
             return ServiceResult.Fail("Task already has this label.", HttpStatusCode.Conflict);
         }
@@ -111,7 +112,7 @@ public class LabelService(
                 : access.Failure;
         }
 
-        var taskLabel = taskLabelRepository.Where(x => x.TaskId == taskId && x.LabelId == labelId).FirstOrDefault();
+        var taskLabel = await taskLabelRepository.GetTaskLabelAsync(taskId, labelId, cancellationToken);
         if (taskLabel is null) return ServiceResult.Fail("Task label not found.", HttpStatusCode.NotFound);
 
         taskLabelRepository.Delete(taskLabel);

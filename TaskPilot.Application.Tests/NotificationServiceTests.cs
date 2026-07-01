@@ -58,7 +58,8 @@ public class NotificationServiceTests
         Assert.True(repository.Notifications.Single(notification => notification.Id == 1).IsRead);
         Assert.True(repository.Notifications.Single(notification => notification.Id == 2).IsRead);
         Assert.False(repository.Notifications.Single(notification => notification.Id == 3).IsRead);
-        Assert.Equal(1, unitOfWork.SaveChangesCallCount);
+        Assert.Equal(1, repository.MarkAllAsReadCallCount);
+        Assert.Equal(0, unitOfWork.SaveChangesCallCount);
     }
 
     private static NotificationService CreateService(
@@ -101,6 +102,7 @@ public class NotificationServiceTests
     private sealed class FakeNotificationRepository : INotificationRepository
     {
         public List<Notification> Notifications { get; } = [];
+        public int MarkAllAsReadCallCount { get; private set; }
 
         public Task<PagedResponse<Notification>> GetNotificationsByUserIdAsync(
             int userId,
@@ -125,6 +127,19 @@ public class NotificationServiceTests
         public Task<List<Notification>> GetUnreadNotificationsByUserIdAsync(int userId, CancellationToken cancellationToken)
         {
             return Task.FromResult(Notifications.Where(notification => notification.UserId == userId && !notification.IsRead).ToList());
+        }
+
+        public Task<int> MarkAllAsReadAsync(int userId, DateTime utcNow, CancellationToken cancellationToken)
+        {
+            MarkAllAsReadCallCount++;
+            var notifications = Notifications.Where(notification => notification.UserId == userId && !notification.IsRead).ToList();
+            foreach (var notification in notifications)
+            {
+                notification.IsRead = true;
+                notification.UpdatedAt = utcNow;
+            }
+
+            return Task.FromResult(notifications.Count);
         }
 
         public Task<List<Notification>> GetAllAsync() => Task.FromResult(Notifications);

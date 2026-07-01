@@ -42,9 +42,10 @@ public sealed class TaskRepository : GenericRepository<TaskItem>, ITaskRepositor
         var search = query.Search?.Trim();
         if (!string.IsNullOrWhiteSpace(search))
         {
+            var searchPattern = $"%{search}%";
             taskQuery = taskQuery.Where(task =>
-                task.Title.Contains(search) ||
-                (task.Description != null && task.Description.Contains(search)));
+                EF.Functions.ILike(task.Title, searchPattern) ||
+                (task.Description != null && EF.Functions.ILike(task.Description, searchPattern)));
         }
 
         var totalCount = await taskQuery.CountAsync(cancellationToken);

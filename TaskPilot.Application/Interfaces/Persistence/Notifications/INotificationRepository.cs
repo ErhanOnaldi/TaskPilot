@@ -14,4 +14,9 @@ public interface INotificationRepository : IGenericRepository<Notification>
     Task<List<Notification>> GetUnreadNotificationsByUserIdAsync(
         int userId,
         CancellationToken cancellationToken);
+
+    Task<int> MarkAllAsReadAsync(
+        int userId,
+        DateTime utcNow,
+        CancellationToken cancellationToken);
 }

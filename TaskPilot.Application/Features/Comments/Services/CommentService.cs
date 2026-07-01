@@ -4,12 +4,13 @@ using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Features.Comments.Dtos;
 using TaskPilot.Application.Interfaces.Persistence;
+using TaskPilot.Application.Interfaces.Persistence.Comments;
 using TaskPilot.Domain.Entities;
 
 namespace TaskPilot.Application.Features.Comments.Services;
 
 public class CommentService(
-    IGenericRepository<Comment> commentRepository,
+    ICommentRepository commentRepository,
     IGenericRepository<TaskItem> taskRepository,
     IUnitOfWork unitOfWork,
     IAccessControlService accessControlService,
@@ -29,7 +30,7 @@ public class CommentService(
             return ServiceResult<List<CommentResponse>>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
         }
 
-        var comments = commentRepository.Where(x => x.TaskId == taskId).OrderBy(x => x.CreatedAt).ToList();
+        var comments = await commentRepository.GetCommentsByTaskIdAsync(taskId, cancellationToken);
         return ServiceResult<List<CommentResponse>>.Success(mapper.Map<List<CommentResponse>>(comments));
     }
 

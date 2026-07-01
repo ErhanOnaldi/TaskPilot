@@ -22,6 +22,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasPostgresExtension("pg_trgm");
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
         modelBuilder.Entity<User>(entity =>
@@ -38,6 +39,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.ToTable("WorkSpaces");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Name).IsRequired().HasMaxLength(100);
+            entity.HasIndex(x => x.Name).HasMethod("gin").HasOperators("gin_trgm_ops");
             entity.HasOne(x => x.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(x => x.CreatedByUserId)
@@ -49,6 +51,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.ToTable("WorkspaceMembers");
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => new { x.WorkspaceId, x.UserId }).IsUnique();
+            entity.HasIndex(x => new { x.UserId, x.WorkspaceId });
             entity.HasOne(x => x.WorkSpace)
                 .WithMany(x => x.Members)
                 .HasForeignKey(x => x.WorkspaceId)
@@ -66,6 +69,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(x => x.Name).IsRequired().HasMaxLength(100);
             entity.Property(x => x.Status).HasConversion<int>();
             entity.HasIndex(x => new { x.WorkspaceId, x.Name }).IsUnique();
+            entity.HasIndex(x => new { x.WorkspaceId, x.CreatedAt });
+            entity.HasIndex(x => new { x.WorkspaceId, x.Status });
+            entity.HasIndex(x => x.Name).HasMethod("gin").HasOperators("gin_trgm_ops");
+            entity.HasIndex(x => x.Description).HasMethod("gin").HasOperators("gin_trgm_ops");
             entity.HasOne(x => x.WorkSpace)
                 .WithMany(x => x.Projects)
                 .HasForeignKey(x => x.WorkspaceId)
@@ -99,6 +106,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(x => x.Title).IsRequired().HasMaxLength(200);
             entity.Property(x => x.Status).HasConversion<int>();
             entity.Property(x => x.Priority).HasConversion<int>();
+            entity.HasIndex(x => new { x.ProjectId, x.CreatedAt });
+            entity.HasIndex(x => new { x.ProjectId, x.Status });
+            entity.HasIndex(x => new { x.ProjectId, x.Priority });
+            entity.HasIndex(x => new { x.ProjectId, x.AssignedUserId });
+            entity.HasIndex(x => new { x.ProjectId, x.DueDate });
+            entity.HasIndex(x => x.Title).HasMethod("gin").HasOperators("gin_trgm_ops");
+            entity.HasIndex(x => x.Description).HasMethod("gin").HasOperators("gin_trgm_ops");
             entity.HasOne(x => x.Project)
                 .WithMany(x => x.Tasks)
                 .HasForeignKey(x => x.ProjectId)
@@ -163,6 +177,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(x => x.Title).IsRequired().HasMaxLength(200);
             entity.Property(x => x.Message).IsRequired().HasMaxLength(2000);
             entity.Property(x => x.IsRead).HasDefaultValue(false);
+            entity.HasIndex(x => new { x.UserId, x.CreatedAt });
+            entity.HasIndex(x => new { x.UserId, x.IsRead, x.CreatedAt });
+            entity.HasIndex(x => new { x.UserId, x.Type, x.CreatedAt });
             entity.HasOne(x => x.User)
                 .WithMany(x => x.Notifications)
                 .HasForeignKey(x => x.UserId)
