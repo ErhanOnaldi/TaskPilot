@@ -1,12 +1,23 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using System.Net;
+using System.Security.Claims;
+using TaskPilot.Application;
+using TaskPilot.Application.Authorization.Abstractions;
+using TaskPilot.Application.Authorization.Enums;
+using TaskPilot.Application.Authorization.Results;
 using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence.Project;
 using TaskPilot.Application.Interfaces.Persistence.Workspace;
 using TaskPilot.Domain.Entities;
+using TaskPilot.Infrastructure.Authorization.Contexts;
+using TaskPilot.Infrastructure.Authorization.Requirements;
 
-namespace TaskPilot.Application.Authorization;
+namespace TaskPilot.Infrastructure.Authorization.Services;
 
 public sealed class AccessControlService(
+    IAuthorizationService authorizationService,
+    IHttpContextAccessor httpContextAccessor,
     ICurrentUserService currentUserService,
     IWorkspaceRepository workspaceRepository,
     IWorkspaceMemberRepository workspaceMemberRepository,
@@ -43,7 +54,12 @@ public sealed class AccessControlService(
                 currentUserId);
         }
 
-        if (accessLevel == WorkspaceAccessLevel.Owner && workspaceMember.Role != Role.Owner)
+        var authorizationResult = await authorizationService.AuthorizeAsync(
+            GetUser(),
+            new WorkspaceAuthorizationContext(workspace, workspaceMember, currentUserId),
+            new WorkspaceAccessRequirement(accessLevel));
+
+        if (!authorizationResult.Succeeded)
         {
             return WorkspaceAccessResult.Fail(
                 ServiceResult.Fail("Only workspace owner can perform this action.", HttpStatusCode.Forbidden),
@@ -98,37 +114,31 @@ public sealed class AccessControlService(
                 currentUserId);
         }
 
-        if (accessLevel == ProjectAccessLevel.Read)
-        {
-            return new ProjectAccessResult(project, workspace, workspaceMember, currentUserId, null);
-        }
+        var projectMember = await projectMemberRepository.GetMemberAsync(projectId, currentUserId, cancellationToken);
+        var authorizationResult = await authorizationService.AuthorizeAsync(
+            GetUser(),
+            new ProjectAuthorizationContext(project, workspace, workspaceMember, projectMember, currentUserId),
+            new ProjectAccessRequirement(accessLevel));
 
-        if (workspaceMember.Role == Role.Owner)
-        {
-            return new ProjectAccessResult(project, workspace, workspaceMember, currentUserId, null);
-        }
-
-        if (accessLevel == ProjectAccessLevel.Participant)
-        {
-            var isProjectMember = await projectMemberRepository.IsProjectMemberAsync(projectId, currentUserId, cancellationToken);
-            if (!isProjectMember)
-            {
-                return ProjectAccessResult.Fail(
-                    ServiceResult.Fail("Only project members can perform this action.", HttpStatusCode.Forbidden),
-                    currentUserId);
-            }
-
-            return new ProjectAccessResult(project, workspace, workspaceMember, currentUserId, null);
-        }
-
-        var isProjectManager = await projectMemberRepository.IsProjectManagerAsync(projectId, currentUserId, cancellationToken);
-        if (!isProjectManager)
+        if (!authorizationResult.Succeeded)
         {
             return ProjectAccessResult.Fail(
-                ServiceResult.Fail("Only workspace owner or project manager can perform this action.", HttpStatusCode.Forbidden),
+                ServiceResult.Fail(GetProjectForbiddenMessage(accessLevel), HttpStatusCode.Forbidden),
                 currentUserId);
         }
 
         return new ProjectAccessResult(project, workspace, workspaceMember, currentUserId, null);
+    }
+
+    private static string GetProjectForbiddenMessage(ProjectAccessLevel accessLevel)
+    {
+        return accessLevel == ProjectAccessLevel.Participant
+            ? "Only project members can perform this action."
+            : "Only workspace owner or project manager can perform this action.";
+    }
+
+    private ClaimsPrincipal GetUser()
+    {
+        return httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal(new ClaimsIdentity());
     }
 }

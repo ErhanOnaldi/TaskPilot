@@ -5,7 +5,7 @@ using TaskPilot.Application.Interfaces.Security;
 using TaskPilot.Domain.Entities;
 using TaskPilot.Domain.Options;
 
-namespace TaskPilot.Application.Features.Auth.Services;
+namespace TaskPilot.Application.Features.Auth.RefreshTokens;
 
 public sealed class RefreshTokenService(
     IRefreshTokenRepository refreshTokenRepository,

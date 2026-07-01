@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using FluentValidation;
-using TaskPilot.Application.Authorization;
+using TaskPilot.Application.Features.Auth.Factories;
+using TaskPilot.Application.Features.Auth.RefreshTokens;
 using TaskPilot.Application.Features.Auth.Services;
 using TaskPilot.Application.Features.Comments.Services;
 using TaskPilot.Application.Features.Dashboard.Services;
@@ -21,7 +22,6 @@ public static class ApplicationExtensions
     {
         services.AddAutoMapper(_ => { }, typeof(ApplicationMappingProfile).Assembly);
         services.AddValidatorsFromAssembly(typeof(ApplicationExtensions).Assembly);
-        services.AddScoped<IAccessControlService, AccessControlService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<IAuthResponseFactory, AuthResponseFactory>();

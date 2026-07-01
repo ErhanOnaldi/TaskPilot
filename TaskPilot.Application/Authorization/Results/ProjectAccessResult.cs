@@ -1,7 +1,7 @@
 using ProjectEntity = TaskPilot.Domain.Entities.Project;
 using TaskPilot.Domain.Entities;
 
-namespace TaskPilot.Application.Authorization;
+namespace TaskPilot.Application.Authorization.Results;
 
 public sealed record ProjectAccessResult(
     ProjectEntity Project,

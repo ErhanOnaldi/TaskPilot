@@ -1,6 +1,7 @@
 using System.Net;
 using AutoMapper;
-using TaskPilot.Application.Authorization;
+using TaskPilot.Application.Authorization.Abstractions;
+using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Features.Workspace.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;

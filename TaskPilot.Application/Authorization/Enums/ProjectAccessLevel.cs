@@ -1,4 +1,4 @@
-namespace TaskPilot.Application.Authorization;
+namespace TaskPilot.Application.Authorization.Enums;
 
 public enum ProjectAccessLevel
 {

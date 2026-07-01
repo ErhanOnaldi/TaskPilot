@@ -1,10 +1,16 @@
 using System.Linq.Expressions;
 using System.Net;
-using TaskPilot.Application.Authorization;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence.Project;
 using TaskPilot.Application.Interfaces.Persistence.Workspace;
 using TaskPilot.Domain.Entities;
+using TaskPilot.Infrastructure.Authorization.Handlers;
+using TaskPilot.Infrastructure.Authorization.Services;
 using ProjectEntity = TaskPilot.Domain.Entities.Project;
 
 namespace TaskPilot.Application.Tests;
@@ -124,11 +130,37 @@ public sealed class AccessControlServiceTests
         int currentUserId)
     {
         return new AccessControlService(
+            CreateAuthorizationService(),
+            CreateHttpContextAccessor(currentUserId),
             new FakeCurrentUserService(currentUserId),
             workspaceRepository,
             workspaceMemberRepository,
             projectRepository,
             new FakeProjectMemberRepository(projectRepository));
+    }
+
+    private static IAuthorizationService CreateAuthorizationService()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddAuthorization();
+        services.AddScoped<IAuthorizationHandler, WorkspaceAccessHandler>();
+        services.AddScoped<IAuthorizationHandler, ProjectAccessHandler>();
+        return services.BuildServiceProvider().GetRequiredService<IAuthorizationService>();
+    }
+
+    private static IHttpContextAccessor CreateHttpContextAccessor(int currentUserId)
+    {
+        return new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(
+                    new ClaimsIdentity(
+                        [new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString())],
+                        "Test"))
+            }
+        };
     }
 
     private sealed class FakeCurrentUserService(int userId) : ICurrentUserService

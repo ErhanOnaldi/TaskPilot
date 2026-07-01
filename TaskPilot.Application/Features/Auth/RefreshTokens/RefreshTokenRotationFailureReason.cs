@@ -1,4 +1,4 @@
-namespace TaskPilot.Application.Features.Auth.Services;
+namespace TaskPilot.Application.Features.Auth.RefreshTokens;
 
 public enum RefreshTokenRotationFailureReason
 {

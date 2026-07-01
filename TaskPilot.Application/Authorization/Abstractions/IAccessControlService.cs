@@ -1,4 +1,7 @@
-namespace TaskPilot.Application.Authorization;
+using TaskPilot.Application.Authorization.Enums;
+using TaskPilot.Application.Authorization.Results;
+
+namespace TaskPilot.Application.Authorization.Abstractions;
 
 public interface IAccessControlService
 {

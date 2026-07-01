@@ -1,6 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Authorization;
+using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Security;
+using TaskPilot.Infrastructure.Authorization.Handlers;
+using TaskPilot.Infrastructure.Authorization.Services;
 using TaskPilot.Infrastructure.Security;
 
 namespace TaskPilot.Infrastructure.Extensions;
@@ -16,6 +20,9 @@ public static class InfrastructureExtensions
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<IAccessControlService, AccessControlService>();
+        services.AddScoped<IAuthorizationHandler, WorkspaceAccessHandler>();
+        services.AddScoped<IAuthorizationHandler, ProjectAccessHandler>();
         
         return services;
     }

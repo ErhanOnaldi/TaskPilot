@@ -1,6 +1,6 @@
 using TaskPilot.Domain.Entities;
 
-namespace TaskPilot.Application.Authorization;
+namespace TaskPilot.Application.Authorization.Results;
 
 public sealed record WorkspaceAccessResult(
     WorkSpace Workspace,
