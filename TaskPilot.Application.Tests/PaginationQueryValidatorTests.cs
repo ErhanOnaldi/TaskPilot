@@ -1,5 +1,7 @@
 using TaskPilot.Application.Features.Project.Dtos;
 using TaskPilot.Application.Features.Project.Validators;
+using TaskPilot.Application.Features.Notifications.Dtos;
+using TaskPilot.Application.Features.Notifications.Validators;
 using TaskPilot.Application.Features.Tasks.Dtos;
 using TaskPilot.Application.Features.Tasks.Validators;
 using TaskPilot.Application.Features.Workspace.Dtos;
@@ -53,5 +55,24 @@ public class PaginationQueryValidatorTests
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, error => error.PropertyName == nameof(WorkspaceQueryParameters.PageNumber));
         Assert.Contains(result.Errors, error => error.PropertyName == nameof(WorkspaceQueryParameters.PageSize));
+    }
+
+    [Fact]
+    public void NotificationQueryParametersValidator_rejects_invalid_pagination_and_type()
+    {
+        var validator = new NotificationQueryParametersValidator();
+        var query = new NotificationQueryParameters
+        {
+            PageNumber = 0,
+            PageSize = 101,
+            Type = new string('a', 101)
+        };
+
+        var result = validator.Validate(query);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.PropertyName == nameof(NotificationQueryParameters.PageNumber));
+        Assert.Contains(result.Errors, error => error.PropertyName == nameof(NotificationQueryParameters.PageSize));
+        Assert.Contains(result.Errors, error => error.PropertyName == nameof(NotificationQueryParameters.Type));
     }
 }

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Auth;
+using TaskPilot.Application.Interfaces.Persistence.Notifications;
 using TaskPilot.Application.Interfaces.Persistence.Project;
 using TaskPilot.Application.Interfaces.Persistence.Tasks;
 using TaskPilot.Application.Interfaces.Persistence.User;
@@ -39,6 +40,7 @@ public static class PersistenceExtensions
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IProjectMemberRepository, ProjectMemberRepository>();
         services.AddScoped<ITaskRepository, TaskRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
         return services;
     }
     

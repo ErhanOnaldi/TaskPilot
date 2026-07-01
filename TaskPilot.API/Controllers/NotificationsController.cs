@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TaskPilot.Application.Features.Notifications.Dtos;
 using TaskPilot.Application.Features.Notifications.Services;
 
 namespace TaskPilot.API.Controllers;
@@ -10,9 +11,11 @@ namespace TaskPilot.API.Controllers;
 public class NotificationsController(INotificationService notificationService) : CustomBaseController
 {
     [HttpGet]
-    public async Task<IActionResult> GetNotifications(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetNotifications(
+        [FromQuery] NotificationQueryParameters query,
+        CancellationToken cancellationToken)
     {
-        return CreateActionResult(await notificationService.GetNotificationsAsync(cancellationToken));
+        return CreateActionResult(await notificationService.GetNotificationsAsync(query, cancellationToken));
     }
 
     [HttpPatch("{notificationId:int}/read")]

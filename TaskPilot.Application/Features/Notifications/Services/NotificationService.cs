@@ -1,28 +1,33 @@
 using System.Net;
 using AutoMapper;
+using TaskPilot.Application.Common.Pagination;
 using TaskPilot.Application.Features.Notifications.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
+using TaskPilot.Application.Interfaces.Persistence.Notifications;
 using TaskPilot.Domain.Entities;
 
 namespace TaskPilot.Application.Features.Notifications.Services;
 
 public class NotificationService(
-    IGenericRepository<Notification> notificationRepository,
+    INotificationRepository notificationRepository,
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUserService,
     IMapper mapper) : INotificationService
 {
-    public Task<ServiceResult<List<NotificationResponse>>> GetNotificationsAsync(CancellationToken cancellationToken)
+    public async Task<ServiceResult<PagedResponse<NotificationResponse>>> GetNotificationsAsync(
+        NotificationQueryParameters query,
+        CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId();
-        var notifications = notificationRepository
-            .Where(x => x.UserId == userId)
-            .OrderByDescending(x => x.CreatedAt)
-            .ToList();
+        var notifications = await notificationRepository.GetNotificationsByUserIdAsync(userId, query, cancellationToken);
+        var response = PagedResponse<NotificationResponse>.Create(
+            mapper.Map<List<NotificationResponse>>(notifications.Items),
+            notifications.PageNumber,
+            notifications.PageSize,
+            notifications.TotalCount);
 
-        return Task.FromResult(
-            ServiceResult<List<NotificationResponse>>.Success(mapper.Map<List<NotificationResponse>>(notifications)));
+        return ServiceResult<PagedResponse<NotificationResponse>>.Success(response);
     }
 
     public async Task<ServiceResult> MarkAsReadAsync(int notificationId, CancellationToken cancellationToken)
@@ -42,9 +47,7 @@ public class NotificationService(
     public async Task<ServiceResult> MarkAllAsReadAsync(CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId();
-        var notifications = (await notificationRepository.GetAllAsync())
-            .Where(x => x.UserId == userId && !x.IsRead)
-            .ToList();
+        var notifications = await notificationRepository.GetUnreadNotificationsByUserIdAsync(userId, cancellationToken);
         foreach (var notification in notifications)
         {
             notification.IsRead = true;
