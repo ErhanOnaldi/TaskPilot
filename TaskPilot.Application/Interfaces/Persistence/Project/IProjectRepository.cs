@@ -1,10 +1,17 @@
 namespace TaskPilot.Application.Interfaces.Persistence.Project;
+using Common.Pagination;
 using Domain.Entities;
+using Features.Project.Dtos;
 
 public interface IProjectRepository : IGenericRepository<Project>
 {
     Task<List<Project>> GetProjectsByWorkspaceIdAsync(
         int workspaceId,
+        CancellationToken cancellationToken);
+
+    Task<PagedResponse<Project>> GetProjectsByWorkspaceIdAsync(
+        int workspaceId,
+        ProjectQueryParameters query,
         CancellationToken cancellationToken);
 
     Task<Project?> GetProjectByIdAsync(

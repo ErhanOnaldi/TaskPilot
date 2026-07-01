@@ -2,6 +2,7 @@ using System.Net;
 using AutoMapper;
 using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
+using TaskPilot.Application.Common.Pagination;
 using TaskPilot.Application.Features.Project.Dtos;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Project;
@@ -15,7 +16,10 @@ public class ProjectService(
     IAccessControlService accessControlService,
     IMapper mapper) : IProjectService
 {
-    public async Task<ServiceResult<List<ProjectListItemResponse>>> GetProjectsAsync(int workspaceId, CancellationToken cancellationToken)
+    public async Task<ServiceResult<PagedResponse<ProjectListItemResponse>>> GetProjectsAsync(
+        int workspaceId,
+        ProjectQueryParameters query,
+        CancellationToken cancellationToken)
     {
         var access = await accessControlService.AuthorizeWorkspaceAsync(
             workspaceId,
@@ -24,12 +28,17 @@ public class ProjectService(
             cancellationToken);
         if (access.Failure is not null)
         {
-            return ServiceResult<List<ProjectListItemResponse>>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
+            return ServiceResult<PagedResponse<ProjectListItemResponse>>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
         }
 
-        var projects = await projectRepository.GetProjectsByWorkspaceIdAsync(workspaceId, cancellationToken);
-        return ServiceResult<List<ProjectListItemResponse>>.Success(
-            mapper.Map<List<ProjectListItemResponse>>(projects));
+        var projects = await projectRepository.GetProjectsByWorkspaceIdAsync(workspaceId, query, cancellationToken);
+        var response = PagedResponse<ProjectListItemResponse>.Create(
+            mapper.Map<List<ProjectListItemResponse>>(projects.Items),
+            projects.PageNumber,
+            projects.PageSize,
+            projects.TotalCount);
+
+        return ServiceResult<PagedResponse<ProjectListItemResponse>>.Success(response);
     }
 
     public async Task<ServiceResult<ProjectResponse>> CreateProjectAsync(int workspaceId, CreateProjectRequest request, CancellationToken cancellationToken)

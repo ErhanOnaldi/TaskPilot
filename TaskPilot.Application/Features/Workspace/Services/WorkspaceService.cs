@@ -2,6 +2,7 @@ using System.Net;
 using AutoMapper;
 using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
+using TaskPilot.Application.Common.Pagination;
 using TaskPilot.Application.Features.Workspace.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
@@ -42,13 +43,19 @@ public class WorkspaceService(
             $"api/workspaces/{workspace.Id}");
     }
 
-    public async Task<ServiceResult<List<WorkspaceListItemResponse>>> GetWorkSpacesAsync(CancellationToken cancellationToken)
+    public async Task<ServiceResult<PagedResponse<WorkspaceListItemResponse>>> GetWorkSpacesAsync(
+        WorkspaceQueryParameters query,
+        CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId();
-        var workspaces = await workspaceRepository.GetWorkspacesByUserIdAsync(userId, cancellationToken);
+        var workspaces = await workspaceRepository.GetWorkspacesByUserIdAsync(userId, query, cancellationToken);
+        var response = PagedResponse<WorkspaceListItemResponse>.Create(
+            mapper.Map<List<WorkspaceListItemResponse>>(workspaces.Items),
+            workspaces.PageNumber,
+            workspaces.PageSize,
+            workspaces.TotalCount);
 
-        return ServiceResult<List<WorkspaceListItemResponse>>.Success(
-            mapper.Map<List<WorkspaceListItemResponse>>(workspaces));
+        return ServiceResult<PagedResponse<WorkspaceListItemResponse>>.Success(response);
     }
 
     public async Task<ServiceResult<WorkspaceResponse>> GetWorkspaceAsync(int id, CancellationToken cancellationToken)

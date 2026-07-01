@@ -6,7 +6,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using TaskPilot.Application.Common.Pagination;
 using TaskPilot.Application.Features.Project.Dtos;
+using TaskPilot.Application.Features.Workspace.Dtos;
 using TaskPilot.Application.Features.Project.Services;
 using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
@@ -174,6 +176,12 @@ public class ProjectServiceTests
             return Task.FromResult(Projects.Where(project => project.WorkspaceId == workspaceId && project.Status != ProjectStatus.Archived).ToList());
         }
 
+        public Task<PagedResponse<ProjectEntity>> GetProjectsByWorkspaceIdAsync(int workspaceId, ProjectQueryParameters query, CancellationToken cancellationToken)
+        {
+            var projects = Projects.Where(project => project.WorkspaceId == workspaceId && project.Status != ProjectStatus.Archived).ToList();
+            return Task.FromResult(PagedResponse<ProjectEntity>.Create(projects, query.PageNumber, query.PageSize, projects.Count));
+        }
+
         public Task<ProjectEntity?> GetProjectByIdAsync(int projectId, CancellationToken cancellationToken)
         {
             return Task.FromResult(Projects.FirstOrDefault(project => project.Id == projectId));
@@ -259,6 +267,11 @@ public class ProjectServiceTests
         public List<WorkSpace> Workspaces { get; } = [];
 
         public Task<List<WorkSpace>> GetWorkspacesByUserIdAsync(int userId, CancellationToken cancellationToken) => Task.FromResult(Workspaces);
+
+        public Task<PagedResponse<WorkSpace>> GetWorkspacesByUserIdAsync(int userId, WorkspaceQueryParameters query, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(PagedResponse<WorkSpace>.Create(Workspaces, query.PageNumber, query.PageSize, Workspaces.Count));
+        }
         public Task<WorkSpace?> GetWorkspaceForMemberAsync(int workspaceId, int userId, CancellationToken cancellationToken) => GetByIdAsync(workspaceId).AsTask();
         public Task<WorkSpace?> GetWorkspaceForOwnerAsync(int workspaceId, int userId, CancellationToken cancellationToken) => GetByIdAsync(workspaceId).AsTask();
         public Task<List<WorkSpace>> GetAllAsync() => Task.FromResult(Workspaces);

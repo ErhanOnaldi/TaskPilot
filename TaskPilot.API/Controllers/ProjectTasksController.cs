@@ -11,9 +11,12 @@ namespace TaskPilot.API.Controllers;
 public class ProjectTasksController(ITaskService taskService) : CustomBaseController
 {
     [HttpGet]
-    public async Task<IActionResult> GetTasks([FromRoute] int projectId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetTasks(
+        [FromRoute] int projectId,
+        [FromQuery] TaskQueryParameters query,
+        CancellationToken cancellationToken)
     {
-        return CreateActionResult(await taskService.GetTasksAsync(projectId, cancellationToken));
+        return CreateActionResult(await taskService.GetTasksAsync(projectId, query, cancellationToken));
     }
 
     [HttpPost]

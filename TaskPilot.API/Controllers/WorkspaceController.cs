@@ -11,9 +11,11 @@ namespace TaskPilot.API.Controllers;
 public class WorkspaceController(IWorkspaceService workspaceService) : CustomBaseController
 {
     [HttpGet]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] WorkspaceQueryParameters query,
+        CancellationToken cancellationToken)
     {
-        return CreateActionResult(await workspaceService.GetWorkSpacesAsync(cancellationToken));
+        return CreateActionResult(await workspaceService.GetWorkSpacesAsync(query, cancellationToken));
     }
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById([FromRoute]int id, CancellationToken cancellationToken)

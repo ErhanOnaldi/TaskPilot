@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using TaskPilot.Application;
 using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
+using TaskPilot.Application.Common.Pagination;
+using TaskPilot.Application.Features.Workspace.Dtos;
 using TaskPilot.Application.Authorization.Results;
 using TaskPilot.Application.Features.WorkspaceMembers.Dtos;
 using TaskPilot.Application.Features.WorkspaceMembers.Services;
@@ -172,6 +174,12 @@ public class WorkspaceMemberServiceTests
         public Task<List<WorkSpace>> GetWorkspacesByUserIdAsync(int userId, CancellationToken cancellationToken)
         {
             return Task.FromResult(Workspaces.Where(workspace => workspace.Members.Any(member => member.UserId == userId)).ToList());
+        }
+
+        public Task<PagedResponse<WorkSpace>> GetWorkspacesByUserIdAsync(int userId, WorkspaceQueryParameters query, CancellationToken cancellationToken)
+        {
+            var workspaces = Workspaces.Where(workspace => workspace.Members.Any(member => member.UserId == userId)).ToList();
+            return Task.FromResult(PagedResponse<WorkSpace>.Create(workspaces, query.PageNumber, query.PageSize, workspaces.Count));
         }
 
         public Task<WorkSpace?> GetWorkspaceForMemberAsync(int workspaceId, int userId, CancellationToken cancellationToken)

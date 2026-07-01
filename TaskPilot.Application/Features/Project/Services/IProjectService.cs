@@ -1,11 +1,13 @@
+using TaskPilot.Application.Common.Pagination;
 using TaskPilot.Application.Features.Project.Dtos;
 
 namespace TaskPilot.Application.Features.Project.Services;
 
 public interface IProjectService
 {
-    Task<ServiceResult<List<ProjectListItemResponse>>> GetProjectsAsync(
+    Task<ServiceResult<PagedResponse<ProjectListItemResponse>>> GetProjectsAsync(
         int workspaceId,
+        ProjectQueryParameters query,
         CancellationToken cancellationToken);
 
     Task<ServiceResult<ProjectResponse>> CreateProjectAsync(int workspaceId,

@@ -13,9 +13,10 @@ public class WorkspaceProjectsController(IProjectService projectService) : Custo
     [HttpGet]
     public async Task<IActionResult> GetProjects(
         [FromRoute] int workspaceId,
+        [FromQuery] ProjectQueryParameters query,
         CancellationToken cancellationToken)
     {
-        var result = await projectService.GetProjectsAsync(workspaceId, cancellationToken);
+        var result = await projectService.GetProjectsAsync(workspaceId, query, cancellationToken);
         return CreateActionResult(result);
     }
 

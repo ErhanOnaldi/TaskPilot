@@ -2,21 +2,26 @@ using System.Net;
 using AutoMapper;
 using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
+using TaskPilot.Application.Common.Pagination;
 using TaskPilot.Application.Features.Tasks.Dtos;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Project;
+using TaskPilot.Application.Interfaces.Persistence.Tasks;
 using TaskPilot.Domain.Entities;
 
 namespace TaskPilot.Application.Features.Tasks.Services;
 
 public class TaskService(
-    IGenericRepository<TaskItem> taskRepository,
+    ITaskRepository taskRepository,
     IProjectMemberRepository projectMemberRepository,
     IUnitOfWork unitOfWork,
     IAccessControlService accessControlService,
     IMapper mapper) : ITaskService
 {
-    public async Task<ServiceResult<List<TaskResponse>>> GetTasksAsync(int projectId, CancellationToken cancellationToken)
+    public async Task<ServiceResult<PagedResponse<TaskResponse>>> GetTasksAsync(
+        int projectId,
+        TaskQueryParameters query,
+        CancellationToken cancellationToken)
     {
         var access = await accessControlService.AuthorizeProjectAsync(
             projectId,
@@ -25,13 +30,17 @@ public class TaskService(
             cancellationToken);
         if (access.Failure is not null)
         {
-            return ServiceResult<List<TaskResponse>>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
+            return ServiceResult<PagedResponse<TaskResponse>>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
         }
 
-        var tasks = taskRepository.Where(x => x.ProjectId == projectId)
-            .OrderByDescending(x => x.CreatedAt)
-            .ToList();
-        return ServiceResult<List<TaskResponse>>.Success(mapper.Map<List<TaskResponse>>(tasks));
+        var tasks = await taskRepository.GetTasksByProjectIdAsync(projectId, query, cancellationToken);
+        var response = PagedResponse<TaskResponse>.Create(
+            mapper.Map<List<TaskResponse>>(tasks.Items),
+            tasks.PageNumber,
+            tasks.PageSize,
+            tasks.TotalCount);
+
+        return ServiceResult<PagedResponse<TaskResponse>>.Success(response);
     }
 
     public async Task<ServiceResult<TaskResponse>> GetTaskAsync(int taskId, CancellationToken cancellationToken)

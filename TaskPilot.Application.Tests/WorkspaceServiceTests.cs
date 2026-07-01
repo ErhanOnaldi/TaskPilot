@@ -9,6 +9,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using TaskPilot.Application;
 using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
+using TaskPilot.Application.Common.Pagination;
+using TaskPilot.Application.Features.Project.Dtos;
 using TaskPilot.Application.Features.Workspace.Dtos;
 using TaskPilot.Application.Features.Workspace.Services;
 using TaskPilot.Application.Interfaces.Infrastructure;
@@ -47,11 +49,11 @@ public class WorkspaceServiceTests
     {
         var service = CreateService(new FakeWorkspaceRepository(), currentUserId: 42);
 
-        var result = await service.GetWorkSpacesAsync(CancellationToken.None);
+        var result = await service.GetWorkSpacesAsync(new WorkspaceQueryParameters(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Data);
-        Assert.Empty(result.Data);
+        Assert.Empty(result.Data.Items);
     }
 
     [Fact]
@@ -154,6 +156,15 @@ public class WorkspaceServiceTests
                     .Where(workspace => !workspace.IsArchived)
                     .Where(workspace => workspace.Members.Any(member => member.UserId == userId))
                     .ToList());
+        }
+
+        public Task<PagedResponse<WorkSpace>> GetWorkspacesByUserIdAsync(int userId, WorkspaceQueryParameters query, CancellationToken cancellationToken)
+        {
+            var workspaces = Workspaces
+                .Where(workspace => query.IncludeArchived || !workspace.IsArchived)
+                .Where(workspace => workspace.Members.Any(member => member.UserId == userId))
+                .ToList();
+            return Task.FromResult(PagedResponse<WorkSpace>.Create(workspaces, query.PageNumber, query.PageSize, workspaces.Count));
         }
 
         public Task<WorkSpace?> GetWorkspaceForMemberAsync(int workspaceId, int userId, CancellationToken cancellationToken)
@@ -293,6 +304,10 @@ public class WorkspaceServiceTests
     private sealed class FakeProjectRepository : IProjectRepository
     {
         public Task<List<ProjectEntity>> GetProjectsByWorkspaceIdAsync(int workspaceId, CancellationToken cancellationToken) => Task.FromResult(new List<ProjectEntity>());
+        public Task<PagedResponse<ProjectEntity>> GetProjectsByWorkspaceIdAsync(int workspaceId, ProjectQueryParameters query, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(PagedResponse<ProjectEntity>.Create([], query.PageNumber, query.PageSize, 0));
+        }
         public Task<ProjectEntity?> GetProjectByIdAsync(int projectId, CancellationToken cancellationToken) => Task.FromResult<ProjectEntity?>(null);
         public Task<ProjectEntity?> GetProjectForUpdateAsync(int projectId, CancellationToken cancellationToken) => Task.FromResult<ProjectEntity?>(null);
         public Task<bool> ExistsByNameInWorkspaceAsync(int workspaceId, string name, CancellationToken cancellationToken) => Task.FromResult(false);
