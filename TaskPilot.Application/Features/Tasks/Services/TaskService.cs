@@ -3,7 +3,9 @@ using AutoMapper;
 using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Common.Pagination;
+using TaskPilot.Application.Events;
 using TaskPilot.Application.Features.Tasks.Dtos;
+using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Project;
 using TaskPilot.Application.Interfaces.Persistence.Tasks;
@@ -16,7 +18,8 @@ public class TaskService(
     IProjectMemberRepository projectMemberRepository,
     IUnitOfWork unitOfWork,
     IAccessControlService accessControlService,
-    IMapper mapper) : ITaskService
+    IMapper mapper,
+    IEventPublisher eventPublisher) : ITaskService
 {
     public async Task<ServiceResult<PagedResponse<TaskResponse>>> GetTasksAsync(
         int projectId,
@@ -97,6 +100,15 @@ public class TaskService(
 
         await taskRepository.AddAsync(task);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        await eventPublisher.PublishAsync(
+            new TaskCreatedEvent(
+                EventId: Guid.NewGuid(),
+                TaskId: task.Id,
+                ProjectId: task.ProjectId,
+                CreatedByUserId: access.CurrentUserId,
+                AssignedUserId: task.AssignedUserId,
+                OccurredAt: DateTime.UtcNow),
+            cancellationToken);
         return ServiceResult<TaskResponse>.Success(mapper.Map<TaskResponse>(task), HttpStatusCode.Created);
     }
 
@@ -104,7 +116,7 @@ public class TaskService(
     {
         var task = await taskRepository.GetByIdAsync(taskId);
         if (task is null) return ServiceResult.Fail("Task not found.", HttpStatusCode.NotFound);
-
+        var previousAssignedUserId = task.AssignedUserId;
         var access = await accessControlService.AuthorizeProjectAsync(
             task.ProjectId,
             ProjectAccessLevel.Participant,
@@ -130,6 +142,20 @@ public class TaskService(
         task.UpdatedAt = DateTime.UtcNow;
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        var assignedUserChanged = previousAssignedUserId != request.AssignedUserId;
+
+        if (assignedUserChanged && request.AssignedUserId.HasValue)
+        {
+            await eventPublisher.PublishAsync(
+                new TaskAssignedEvent(
+                    EventId: Guid.NewGuid(),
+                    TaskId: task.Id,
+                    ProjectId: task.ProjectId,
+                    AssignedUserId: request.AssignedUserId.Value,
+                    AssignedByUserId: access.CurrentUserId,
+                    OccurredAt: DateTime.UtcNow),
+                cancellationToken);
+        }
         return ServiceResult.Success(HttpStatusCode.NoContent);
     }
 
@@ -183,7 +209,7 @@ public class TaskService(
     {
         var task = await taskRepository.GetByIdAsync(taskId);
         if (task is null) return ServiceResult.Fail("Task not found.", HttpStatusCode.NotFound);
-
+        var previousAssignedUserId = task.AssignedUserId;
         var access = await accessControlService.AuthorizeProjectAsync(
             task.ProjectId,
             ProjectAccessLevel.Manage,
@@ -204,6 +230,20 @@ public class TaskService(
         task.AssignedUserId = request.AssignedUserId;
         task.UpdatedAt = DateTime.UtcNow;
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        var assignedUserChanged = previousAssignedUserId != request.AssignedUserId;
+
+        if (assignedUserChanged && request.AssignedUserId.HasValue)
+        {
+            await eventPublisher.PublishAsync(
+                new TaskAssignedEvent(
+                    EventId: Guid.NewGuid(),
+                    TaskId: task.Id,
+                    ProjectId: task.ProjectId,
+                    AssignedUserId: request.AssignedUserId.Value,
+                    AssignedByUserId: access.CurrentUserId,
+                    OccurredAt: DateTime.UtcNow),
+                cancellationToken);
+        }
         return ServiceResult.Success(HttpStatusCode.NoContent);
     }
 }

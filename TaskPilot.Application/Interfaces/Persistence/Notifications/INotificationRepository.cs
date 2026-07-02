@@ -19,4 +19,8 @@ public interface INotificationRepository : IGenericRepository<Notification>
         int userId,
         DateTime utcNow,
         CancellationToken cancellationToken);
+    Task<bool> ExistsBySourceEventIdAsync(
+        int userId,
+        Guid sourceEventId,
+        CancellationToken cancellationToken);
 }

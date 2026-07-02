@@ -217,6 +217,9 @@ namespace TaskPilot.Persistence.Migrations
                     b.Property<int?>("RelatedEntityId")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("SourceEventId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -236,6 +239,10 @@ namespace TaskPilot.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("UserId", "CreatedAt");
+
+                    b.HasIndex("UserId", "SourceEventId")
+                        .IsUnique()
+                        .HasFilter("\"SourceEventId\" IS NOT NULL");
 
                     b.HasIndex("UserId", "IsRead", "CreatedAt");
 

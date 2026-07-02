@@ -4,6 +4,7 @@ using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Authorization.Results;
 using TaskPilot.Application.Features.Dashboard.Dtos;
 using TaskPilot.Application.Features.Dashboard.Services;
+using TaskPilot.Application.Interfaces.Infrastructure.Caching;
 using TaskPilot.Application.Interfaces.Persistence.Dashboard;
 
 namespace TaskPilot.Application.Tests;
@@ -25,7 +26,7 @@ public class DashboardServiceTests
                 OverdueTasks: 1,
                 AssignedTasks: 6,
                 UnassignedTasks: 2));
-        var service = new DashboardService(repository, new FakeAccessControlService());
+        var service = new DashboardService(repository, new FakeAccessControlService(), new FakeCacheService());
 
         var result = await service.GetProjectDashboardAsync(20, CancellationToken.None);
 
@@ -42,7 +43,8 @@ public class DashboardServiceTests
         var repository = new FakeDashboardRepository(new ProjectDashboardResponse(20, 0, 0, 0, 0, 0, 0, 0, 0, 0));
         var service = new DashboardService(
             repository,
-            new FakeAccessControlService(ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound)));
+            new FakeAccessControlService(ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound)),
+            new FakeCacheService());
 
         var result = await service.GetProjectDashboardAsync(20, CancellationToken.None);
 
@@ -89,6 +91,24 @@ public class DashboardServiceTests
                 : ProjectAccessResult.Fail(failure, 1);
 
             return Task.FromResult(result);
+        }
+    }
+
+    private sealed class FakeCacheService : ICacheService
+    {
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken)
+        {
+            return Task.FromResult<T?>(default);
+        }
+
+        public Task SetAsync<T>(string key, T value, TimeSpan ttl, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
         }
     }
 }

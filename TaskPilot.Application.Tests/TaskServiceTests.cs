@@ -12,6 +12,7 @@ using TaskPilot.Application.Features.Tasks.Dtos;
 using TaskPilot.Application.Features.Tasks.Services;
 using TaskPilot.Application.Features.Workspace.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure;
+using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Project;
 using TaskPilot.Application.Interfaces.Persistence.Tasks;
@@ -87,7 +88,8 @@ public class TaskServiceTests
                 workspaceMemberRepository,
                 projectRepository,
                 new FakeProjectMemberRepository(projectRepository)),
-            CreateMapper());
+            CreateMapper(),
+            new FakeEventPublisher());
     }
 
     private static IAuthorizationService CreateAuthorizationService()
@@ -131,6 +133,14 @@ public class TaskServiceTests
     private sealed class FakeUnitOfWork : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+    }
+
+    private sealed class FakeEventPublisher : IEventPublisher
+    {
+        public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeTaskRepository : ITaskRepository

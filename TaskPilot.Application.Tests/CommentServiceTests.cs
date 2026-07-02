@@ -5,6 +5,7 @@ using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Authorization.Results;
 using TaskPilot.Application.Features.Comments.Services;
+using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Comments;
 using TaskPilot.Application.Mappings;
@@ -45,7 +46,8 @@ public class CommentServiceTests
             taskRepository,
             new FakeUnitOfWork(),
             new FakeAccessControlService(),
-            CreateMapper());
+            CreateMapper(),
+            new FakeEventPublisher());
     }
 
     private static IMapper CreateMapper()
@@ -96,6 +98,14 @@ public class CommentServiceTests
     private sealed class FakeUnitOfWork : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+    }
+
+    private sealed class FakeEventPublisher : IEventPublisher
+    {
+        public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeAccessControlService : IAccessControlService

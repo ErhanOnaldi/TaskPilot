@@ -2,7 +2,9 @@ using System.Net;
 using AutoMapper;
 using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
+using TaskPilot.Application.Events;
 using TaskPilot.Application.Features.Comments.Dtos;
+using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Comments;
 using TaskPilot.Domain.Entities;
@@ -14,7 +16,8 @@ public class CommentService(
     IGenericRepository<TaskItem> taskRepository,
     IUnitOfWork unitOfWork,
     IAccessControlService accessControlService,
-    IMapper mapper) : ICommentService
+    IMapper mapper,
+    IEventPublisher eventPublisher) : ICommentService
 {
     public async Task<ServiceResult<List<CommentResponse>>> GetCommentsAsync(int taskId, CancellationToken cancellationToken)
     {
@@ -61,6 +64,15 @@ public class CommentService(
         };
         await commentRepository.AddAsync(comment);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        await eventPublisher.PublishAsync(
+            new CommentAddedEvent(
+                EventId: Guid.NewGuid(),
+                CommentId: comment.Id,
+                TaskId: task.Id,
+                ProjectId: task.ProjectId,
+                AuthorUserId: access.CurrentUserId,
+                OccurredAt: DateTime.UtcNow),
+            cancellationToken);
         return ServiceResult<CommentResponse>.Success(mapper.Map<CommentResponse>(comment), HttpStatusCode.Created);
     }
 

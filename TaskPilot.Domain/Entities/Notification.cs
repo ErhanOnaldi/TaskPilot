@@ -9,6 +9,7 @@ public class Notification : AuditEntity
     public string Message { get; set; } = null!;
     public bool IsRead { get; set; }
     public int? RelatedEntityId { get; set; }
-
+    public Guid? SourceEventId { get; set; }
+    
     public User? User { get; set; }
 }

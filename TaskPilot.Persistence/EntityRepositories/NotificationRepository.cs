@@ -61,6 +61,17 @@ public sealed class NotificationRepository : GenericRepository<Notification>, IN
                     .SetProperty(notification => notification.UpdatedAt, utcNow),
                 cancellationToken);
     }
+    public Task<bool> ExistsBySourceEventIdAsync(
+        int userId,
+        Guid sourceEventId,
+        CancellationToken cancellationToken)
+    {
+        return _dbContext.Notifications.AnyAsync(
+            notification =>
+                notification.UserId == userId &&
+                notification.SourceEventId == sourceEventId,
+            cancellationToken);
+    }
 
     private static IOrderedQueryable<Notification> ApplySorting(
         IQueryable<Notification> query,
@@ -76,4 +87,5 @@ public sealed class NotificationRepository : GenericRepository<Notification>, IN
             _ => query.OrderByDescending(notification => notification.CreatedAt).ThenByDescending(notification => notification.Id)
         };
     }
+    
 }

@@ -142,6 +142,13 @@ public class NotificationServiceTests
             return Task.FromResult(notifications.Count);
         }
 
+        public Task<bool> ExistsBySourceEventIdAsync(int userId, Guid sourceEventId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Notifications.Any(notification =>
+                notification.UserId == userId &&
+                notification.SourceEventId == sourceEventId));
+        }
+
         public Task<List<Notification>> GetAllAsync() => Task.FromResult(Notifications);
         public Task<List<Notification>> GetAllPagedAsync(int pageNumber, int pageSize) => Task.FromResult(Notifications.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList());
         public IQueryable<Notification> Where(Expression<Func<Notification, bool>> predicate) => Notifications.AsQueryable().Where(predicate);

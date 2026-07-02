@@ -184,6 +184,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany(x => x.Notifications)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => new { x.UserId, x.SourceEventId })
+                .IsUnique()
+                .HasFilter("\"SourceEventId\" IS NOT NULL");
         });
 
         modelBuilder.Entity<AuditLog>(entity =>
