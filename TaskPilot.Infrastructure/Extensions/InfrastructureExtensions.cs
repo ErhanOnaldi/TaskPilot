@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
+using MassTransit;
+using TaskPilot.Application.Events;
 using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Infrastructure.Caching;
@@ -37,8 +39,37 @@ public static class InfrastructureExtensions
         services.AddScoped<IDashboardCacheInvalidator, DashboardCacheInvalidator>();
         services.Configure<RabbitMqOptions>(
             configuration.GetSection("RabbitMq"));
-        services.AddScoped<IEventPublisher,RabbitMqEventPublisher>();
-        services.AddHostedService<NotificationConsumerHostedService>();
+        services.AddScoped<IEventPublisher, MassTransitEventPublisher>();
+        services.AddMassTransit(busRegistrationConfigurator =>
+        {
+            busRegistrationConfigurator.AddConsumer<NotificationConsumer>();
+            busRegistrationConfigurator.SetKebabCaseEndpointNameFormatter();
+            busRegistrationConfigurator.UsingRabbitMq((context, rabbitMqBusFactoryConfigurator) =>
+            {
+                var rabbitMqOptions = configuration.GetSection("RabbitMq").Get<RabbitMqOptions>() ?? new RabbitMqOptions();
+                var virtualHost = Uri.EscapeDataString(rabbitMqOptions.VirtualHost);
+                rabbitMqBusFactoryConfigurator.Host(
+                    new Uri($"rabbitmq://{rabbitMqOptions.HostName}:{rabbitMqOptions.Port}/{virtualHost}"),
+                    hostConfigurator =>
+                    {
+                        hostConfigurator.Username(rabbitMqOptions.UserName);
+                        hostConfigurator.Password(rabbitMqOptions.Password);
+                    });
+
+                rabbitMqBusFactoryConfigurator.Message<TaskCreatedEvent>(messageConfigurator => messageConfigurator.SetEntityName("task.created"));
+                rabbitMqBusFactoryConfigurator.Message<TaskAssignedEvent>(messageConfigurator => messageConfigurator.SetEntityName("task.assigned"));
+                rabbitMqBusFactoryConfigurator.Message<CommentAddedEvent>(messageConfigurator => messageConfigurator.SetEntityName("comment.added"));
+
+                rabbitMqBusFactoryConfigurator.ReceiveEndpoint("taskpilot.notifications", endpointConfigurator =>
+                {
+                    endpointConfigurator.PrefetchCount = 10;
+                    endpointConfigurator.ConcurrentMessageLimit = 5;
+                    endpointConfigurator.UseMessageRetry(retryConfigurator =>
+                        retryConfigurator.Interval(3, TimeSpan.FromSeconds(5)));
+                    endpointConfigurator.ConfigureConsumer<NotificationConsumer>(context);
+                });
+            });
+        });
         return services;
     }
 }

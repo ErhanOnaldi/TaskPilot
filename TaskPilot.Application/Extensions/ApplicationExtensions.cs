@@ -34,6 +34,7 @@ public static class ApplicationExtensions
         services.AddScoped<ILabelService, LabelService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<INotificationEventHandler, NotificationEventHandler>();
         return services;
     }
     
