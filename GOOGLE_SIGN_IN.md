@@ -45,6 +45,14 @@ Client id public bir değerdir (bundle'a gömülür), secret olması gerekmez. D
 - Yanıt normal login ile aynıdır: access token + refresh token, yani mevcut oturum/rotasyon mantığı değişmedi.
 - Sadece Google ile açılmış bir hesap şifreyle giriş denerse `401` ve "Google ile devam edin" mesajı döner.
 
+## CSP
+
+`Frontend/public/_headers` içindeki Content-Security-Policy, Google Identity Services için şu izinleri içermek zorunda. Bunlar kaldırılırsa buton sessizce yüklenemez:
+
+- `script-src ... https://accounts.google.com/gsi/client`
+- `style-src ... https://accounts.google.com/gsi/style`
+- `frame-src 'self' https://accounts.google.com/gsi/`
+
 ## Veritabanı
 
 `20260802191923_AddGoogleIdentityToUsers` migration'ı `Users.GoogleSubject` kolonunu (unique, filtered index) ekler ve `PasswordHash` kolonunu nullable yapar. Render'da `Persistence__ApplyMigrationsOnStartup=true` olduğu için deploy sırasında otomatik uygulanır.

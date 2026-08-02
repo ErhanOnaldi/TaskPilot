@@ -13,7 +13,7 @@ export function GoogleSignInButton({ text, theme, pending, onCredential, onError
   const hostRef = useRef<HTMLDivElement>(null);
   const credentialRef = useRef(onCredential);
   const errorRef = useRef(onError);
-  const [ready, setReady] = useState(false);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
 
   useEffect(() => {
     credentialRef.current = onCredential;
@@ -50,10 +50,12 @@ export function GoogleSignInButton({ text, theme, pending, onCredential, onError
           locale: 'tr',
           width: Math.min(400, Math.max(200, measured || 370)),
         });
-        setReady(true);
+        setStatus('ready');
       })
       .catch(() => {
-        if (!cancelled) errorRef.current('Google giriş servisi yüklenemedi. Bağlantınızı kontrol edin.');
+        if (cancelled) return;
+        setStatus('failed');
+        errorRef.current('Google giriş servisi yüklenemedi. Bağlantınızı kontrol edin.');
       });
 
     return () => {
@@ -66,9 +68,13 @@ export function GoogleSignInButton({ text, theme, pending, onCredential, onError
   return (
     <div className="auth-google">
       <div className="auth-divider"><span>veya</span></div>
-      <div className="auth-google__button" data-pending={pending || !ready ? 'true' : undefined}>
+      <div className="auth-google__button" data-pending={pending || status !== 'ready' ? 'true' : undefined}>
         <div ref={hostRef} />
-        {ready ? null : <span className="auth-google__placeholder">Google yükleniyor…</span>}
+        {status === 'ready' ? null : (
+          <span className="auth-google__placeholder">
+            {status === 'failed' ? 'Google ile giriş şu an kullanılamıyor.' : 'Google yükleniyor…'}
+          </span>
+        )}
       </div>
     </div>
   );

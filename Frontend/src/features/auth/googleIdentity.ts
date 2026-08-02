@@ -42,21 +42,25 @@ export function loadGoogleIdentity(): Promise<GoogleIdentityApi> {
   if (pendingLoad) return pendingLoad;
 
   pendingLoad = new Promise<GoogleIdentityApi>((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${SCRIPT_SRC}"]`);
-    const script = existing ?? document.createElement('script');
-    const settle = () => {
+    // A tag left behind by a blocked or failed attempt never fires load again, so it is replaced.
+    document.querySelector<HTMLScriptElement>(`script[src="${SCRIPT_SRC}"]`)?.remove();
+    const script = document.createElement('script');
+    const fail = () => reject(new Error('Google Identity Services yüklenemedi.'));
+    const timeout = window.setTimeout(fail, 10_000);
+    script.addEventListener('load', () => {
+      window.clearTimeout(timeout);
       const api = window.google?.accounts.id;
       if (api) resolve(api);
-      else reject(new Error('Google Identity Services yüklenemedi.'));
-    };
-    script.addEventListener('load', settle, { once: true });
-    script.addEventListener('error', () => reject(new Error('Google Identity Services yüklenemedi.')), { once: true });
-    if (!existing) {
-      script.src = SCRIPT_SRC;
-      script.async = true;
-      script.defer = true;
-      document.head.append(script);
-    }
+      else fail();
+    }, { once: true });
+    script.addEventListener('error', () => {
+      window.clearTimeout(timeout);
+      fail();
+    }, { once: true });
+    script.src = SCRIPT_SRC;
+    script.async = true;
+    script.defer = true;
+    document.head.append(script);
   }).catch((reason: unknown) => {
     pendingLoad = null;
     throw reason;
