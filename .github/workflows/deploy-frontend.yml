@@ -1,0 +1,59 @@
+name: Deploy frontend to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - codex/taskpilot-deploy
+    paths:
+      - "Frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taskpilot-frontend-production
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: Frontend
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: 485e07cfa134b36e9171c3f6210db67e
+  VITE_API_BASE_URL: https://taskpilot-api-37be.onrender.com
+
+jobs:
+  deploy:
+    name: Build, test and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        run: npx wrangler pages deploy dist --project-name taskpilot-web --branch codex/taskpilot-deploy --commit-hash "$GITHUB_SHA"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_API_TOKEN }}
