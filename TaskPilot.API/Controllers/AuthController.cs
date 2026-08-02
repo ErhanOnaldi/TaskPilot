@@ -19,7 +19,15 @@ public class AuthController(IAuthService authService): CustomBaseController
         return CreateActionResult(result);
     }
 
-    [HttpPost("register")] 
+    [HttpPost("google")]
+    [EnableRateLimiting(TaskPilotRateLimitingExtensions.AuthPolicy)]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request, CancellationToken cancellationToken)
+    {
+        var result = await authService.GoogleLoginAsync(request, cancellationToken);
+        return CreateActionResult(result);
+    }
+
+    [HttpPost("register")]
     [EnableRateLimiting(TaskPilotRateLimitingExtensions.AuthPolicy)]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
     {

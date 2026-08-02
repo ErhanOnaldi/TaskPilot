@@ -4,4 +4,5 @@ using TaskPilot.Domain.Entities;
 public interface IUserRepository : IGenericRepository<User>
 {
     Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default);
+    Task<User?> GetByGoogleSubjectAsync(string googleSubject, CancellationToken cancellationToken = default);
 }

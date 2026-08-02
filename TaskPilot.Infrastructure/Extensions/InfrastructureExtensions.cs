@@ -8,6 +8,7 @@ using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Infrastructure.Caching;
 using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
 using TaskPilot.Application.Interfaces.Security;
+using TaskPilot.Domain.Options;
 using TaskPilot.Infrastructure.Authorization.Handlers;
 using TaskPilot.Infrastructure.Authorization.Services;
 using TaskPilot.Infrastructure.Auditing;
@@ -25,6 +26,8 @@ public static class InfrastructureExtensions
     {
         services.AddScoped<IPasswordHasher, PasswordHasherService>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.Configure<GoogleAuthOptions>(configuration.GetSection("Authentication:Google"));
+        services.AddSingleton<IGoogleIdentityTokenValidator, GoogleIdentityTokenValidator>();
         services.AddScoped<IRefreshTokenGenerator, RefreshTokenGenerator>();
         services.AddScoped<IRefreshTokenHasher, RefreshTokenHasher>();
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();

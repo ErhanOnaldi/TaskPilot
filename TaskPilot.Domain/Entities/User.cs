@@ -4,7 +4,12 @@ public class User : AuditEntity
 {
     public int Id { get; set; }
     public string Email { get; set; } = null!;
-    public string PasswordHash { get; set; } = null!;
+
+    /// <summary>Null for accounts that only sign in through an external provider.</summary>
+    public string? PasswordHash { get; set; }
+
+    /// <summary>Google "sub" claim. Stable per Google account and never reused.</summary>
+    public string? GoogleSubject { get; set; }
 
     public ICollection<WorkspaceMember> WorkspaceMemberships { get; set; } = new List<WorkspaceMember>();
     public ICollection<ProjectMember> ProjectMemberships { get; set; } = new List<ProjectMember>();

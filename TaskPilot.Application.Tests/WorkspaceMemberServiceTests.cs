@@ -322,6 +322,11 @@ public class WorkspaceMemberServiceTests
             return Task.FromResult(Users.FirstOrDefault(user => user.Email == email));
         }
 
+        public Task<User?> GetByGoogleSubjectAsync(string googleSubject, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Users.FirstOrDefault(user => user.GoogleSubject == googleSubject));
+        }
+
         public Task<List<User>> GetAllAsync() => Task.FromResult(Users);
         public Task<List<User>> GetAllPagedAsync(int pageNumber, int pageSize) => Task.FromResult(Users);
         public IQueryable<User> Where(Expression<Func<User, bool>> predicate) => Users.AsQueryable().Where(predicate);

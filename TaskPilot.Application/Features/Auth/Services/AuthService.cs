@@ -19,6 +19,7 @@ public class AuthService(
     IRefreshTokenService refreshTokenService,
     IAuthResponseFactory authResponseFactory,
     ICurrentUserService currentUserService,
+    IGoogleIdentityTokenValidator googleIdentityTokenValidator,
     IMapper mapper) : IAuthService
 {
     public async Task<ServiceResult<AuthResponse>> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
@@ -56,6 +57,12 @@ public class AuthService(
         {
             return ServiceResult<AuthResponse>.Fail("Email or password is incorrect.", HttpStatusCode.Unauthorized);
         }
+        if (user.PasswordHash is null)
+        {
+            return ServiceResult<AuthResponse>.Fail(
+                "This account was created with Google. Continue with Google.",
+                HttpStatusCode.Unauthorized);
+        }
         var verifyResult = passwordHasher.Verify(request.Password, user.PasswordHash);
         if (!verifyResult)
         {
@@ -66,6 +73,70 @@ public class AuthService(
 
         var authToken = jwtTokenGenerator.Generate(user);
         return ServiceResult<AuthResponse>.Success(authResponseFactory.Create(user, authToken, refreshToken));
+    }
+
+    public async Task<ServiceResult<AuthResponse>> GoogleLoginAsync(GoogleLoginRequest request, CancellationToken cancellationToken)
+    {
+        if (!googleIdentityTokenValidator.IsEnabled)
+        {
+            return ServiceResult<AuthResponse>.Fail(
+                "Google sign-in is not configured.",
+                HttpStatusCode.ServiceUnavailable);
+        }
+
+        var identity = await googleIdentityTokenValidator.ValidateAsync(request.IdToken, cancellationToken);
+        if (identity is null)
+        {
+            return ServiceResult<AuthResponse>.Fail("Google sign-in could not be verified.", HttpStatusCode.Unauthorized);
+        }
+
+        if (!identity.IsEmailVerified)
+        {
+            return ServiceResult<AuthResponse>.Fail(
+                "The Google account email is not verified.",
+                HttpStatusCode.Unauthorized);
+        }
+
+        var normalizedEmail = identity.Email.Trim().ToLowerInvariant();
+        var isNewUser = false;
+        var user = await repository.GetByGoogleSubjectAsync(identity.Subject, cancellationToken);
+        if (user is null)
+        {
+            // Same person signing in with Google for the first time keeps their existing local account.
+            user = await repository.GetByEmailAsync(normalizedEmail, cancellationToken);
+            if (user is null)
+            {
+                isNewUser = true;
+                user = new User
+                {
+                    Email = normalizedEmail,
+                    PasswordHash = null,
+                    GoogleSubject = identity.Subject
+                };
+                await repository.AddAsync(user);
+            }
+            else
+            {
+                user.GoogleSubject = identity.Subject;
+            }
+        }
+
+        var refreshToken = isNewUser
+            ? CreateAndAttachRefreshToken(user)
+            : await refreshTokenService.CreateAndAddForUserAsync(user);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var authToken = jwtTokenGenerator.Generate(user);
+        return ServiceResult<AuthResponse>.Success(
+            authResponseFactory.Create(user, authToken, refreshToken),
+            isNewUser ? HttpStatusCode.Created : HttpStatusCode.OK);
+    }
+
+    private CreatedRefreshToken CreateAndAttachRefreshToken(User user)
+    {
+        var refreshToken = refreshTokenService.CreateForUser(user);
+        user.RefreshTokens.Add(refreshToken.Entity);
+        return refreshToken;
     }
 
     public async Task<ServiceResult<AuthUserResponse>> GetMeAsync(CancellationToken cancellationToken)

@@ -32,6 +32,8 @@ services:
         value: "15"
       - key: Jwt__RefreshTokenExpirationDays
         value: "7"
+      - key: Authentication__Google__ClientId
+        sync: false
       - key: Cors__AllowedOrigins
         value: https://taskpilot-web.pages.dev
       - key: HttpsRedirection__Enabled

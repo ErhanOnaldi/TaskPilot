@@ -12,4 +12,9 @@ public class UserRepository(AppDbContext dbContext) : GenericRepository<User>(db
     {
         return _dbContext.Users.FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
     }
+
+    public Task<User?> GetByGoogleSubjectAsync(string googleSubject, CancellationToken cancellationToken = default)
+    {
+        return _dbContext.Users.FirstOrDefaultAsync(x => x.GoogleSubject == googleSubject, cancellationToken);
+    }
 }

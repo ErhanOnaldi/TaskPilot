@@ -23,6 +23,7 @@ defaults:
 env:
   CLOUDFLARE_ACCOUNT_ID: 485e07cfa134b36e9171c3f6210db67e
   VITE_API_BASE_URL: https://taskpilot-api-37be.onrender.com
+  VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
 
 jobs:
   deploy:

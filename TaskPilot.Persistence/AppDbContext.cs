@@ -32,7 +32,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Email).IsRequired().HasMaxLength(320);
             entity.HasIndex(x => x.Email).IsUnique();
-            entity.Property(x => x.PasswordHash).IsRequired();
+            entity.Property(x => x.GoogleSubject).HasMaxLength(64);
+            entity.HasIndex(x => x.GoogleSubject)
+                .IsUnique()
+                .HasFilter("\"GoogleSubject\" IS NOT NULL");
         });
 
         modelBuilder.Entity<WorkSpace>(entity =>
