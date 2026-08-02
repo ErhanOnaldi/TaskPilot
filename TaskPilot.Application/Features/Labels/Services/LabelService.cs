@@ -3,8 +3,11 @@ using AutoMapper;
 using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Features.Labels.Dtos;
+using TaskPilot.Application.Interfaces.Infrastructure;
+using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Labels;
+using TaskPilot.Application.Events;
 using TaskPilot.Domain.Entities;
 
 namespace TaskPilot.Application.Features.Labels.Services;
@@ -15,7 +18,9 @@ public class LabelService(
     ITaskLabelRepository taskLabelRepository,
     IUnitOfWork unitOfWork,
     IAccessControlService accessControlService,
-    IMapper mapper) : ILabelService
+    IMapper mapper,
+    IDateTimeProvider dateTimeProvider,
+    IEventOutbox eventOutbox) : ILabelService
 {
     public async Task<ServiceResult<List<LabelResponse>>> GetLabelsAsync(int projectId, CancellationToken cancellationToken)
     {
@@ -58,13 +63,81 @@ public class LabelService(
             ProjectId = projectId,
             Name = name,
             Color = string.IsNullOrWhiteSpace(request.Color) ? "#3B82F6" : request.Color.Trim(),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = dateTimeProvider.UtcNow,
+            UpdatedAt = dateTimeProvider.UtcNow
         };
 
         await labelRepository.AddAsync(label);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ServiceResult<LabelResponse>.Success(mapper.Map<LabelResponse>(label), HttpStatusCode.Created);
+    }
+
+    public async Task<ServiceResult> UpdateLabelAsync(
+        int projectId,
+        int labelId,
+        UpdateLabelRequest request,
+        CancellationToken cancellationToken)
+    {
+        var access = await accessControlService.AuthorizeProjectAsync(
+            projectId,
+            ProjectAccessLevel.Manage,
+            requireActiveProject: true,
+            cancellationToken);
+        if (access.Failure is not null)
+        {
+            return access.Failure.Status == HttpStatusCode.Forbidden
+                ? ServiceResult.Fail("Only workspace owner or project manager can manage labels.", HttpStatusCode.Forbidden)
+                : access.Failure;
+        }
+
+        var label = await labelRepository.GetByIdAsync(labelId);
+        if (label is null || label.ProjectId != projectId)
+        {
+            return ServiceResult.Fail("Label not found.", HttpStatusCode.NotFound);
+        }
+
+        var name = request.Name.Trim();
+        if (await labelRepository.ExistsByNameInProjectExceptLabelAsync(projectId, labelId, name, cancellationToken))
+        {
+            return ServiceResult.Fail("Label already exists.", HttpStatusCode.Conflict);
+        }
+
+        label.Name = name;
+        label.Color = string.IsNullOrWhiteSpace(request.Color) ? "#3B82F6" : request.Color.Trim();
+        label.UpdatedAt = dateTimeProvider.UtcNow;
+        labelRepository.Update(label);
+        await EnqueueDashboardInvalidationAsync(projectId, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return ServiceResult.Success(HttpStatusCode.NoContent);
+    }
+
+    public async Task<ServiceResult> DeleteLabelAsync(
+        int projectId,
+        int labelId,
+        CancellationToken cancellationToken)
+    {
+        var access = await accessControlService.AuthorizeProjectAsync(
+            projectId,
+            ProjectAccessLevel.Manage,
+            requireActiveProject: true,
+            cancellationToken);
+        if (access.Failure is not null)
+        {
+            return access.Failure.Status == HttpStatusCode.Forbidden
+                ? ServiceResult.Fail("Only workspace owner or project manager can manage labels.", HttpStatusCode.Forbidden)
+                : access.Failure;
+        }
+
+        var label = await labelRepository.GetByIdAsync(labelId);
+        if (label is null || label.ProjectId != projectId)
+        {
+            return ServiceResult.Fail("Label not found.", HttpStatusCode.NotFound);
+        }
+
+        labelRepository.Delete(label);
+        await EnqueueDashboardInvalidationAsync(projectId, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return ServiceResult.Success(HttpStatusCode.NoContent);
     }
 
     public async Task<ServiceResult> AddLabelToTaskAsync(int taskId, int labelId, CancellationToken cancellationToken)
@@ -76,13 +149,13 @@ public class LabelService(
 
         var access = await accessControlService.AuthorizeProjectAsync(
             task.ProjectId,
-            ProjectAccessLevel.Participant,
+            ProjectAccessLevel.Manage,
             requireActiveProject: true,
             cancellationToken);
         if (access.Failure is not null)
         {
             return access.Failure.Status == HttpStatusCode.Forbidden
-                ? ServiceResult.Fail("Only project members can manage task labels.", HttpStatusCode.Forbidden)
+                ? ServiceResult.Fail("Only workspace owner or project manager can manage task labels.", HttpStatusCode.Forbidden)
                 : access.Failure;
         }
 
@@ -92,6 +165,7 @@ public class LabelService(
         }
 
         await taskLabelRepository.AddAsync(new TaskLabel { TaskId = taskId, LabelId = labelId });
+        await EnqueueDashboardInvalidationAsync(task.ProjectId, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ServiceResult.Success(HttpStatusCode.NoContent);
     }
@@ -102,13 +176,13 @@ public class LabelService(
         if (task is null) return ServiceResult.Fail("Task not found.", HttpStatusCode.NotFound);
         var access = await accessControlService.AuthorizeProjectAsync(
             task.ProjectId,
-            ProjectAccessLevel.Participant,
+            ProjectAccessLevel.Manage,
             requireActiveProject: true,
             cancellationToken);
         if (access.Failure is not null)
         {
             return access.Failure.Status == HttpStatusCode.Forbidden
-                ? ServiceResult.Fail("Only project members can manage task labels.", HttpStatusCode.Forbidden)
+                ? ServiceResult.Fail("Only workspace owner or project manager can manage task labels.", HttpStatusCode.Forbidden)
                 : access.Failure;
         }
 
@@ -116,7 +190,16 @@ public class LabelService(
         if (taskLabel is null) return ServiceResult.Fail("Task label not found.", HttpStatusCode.NotFound);
 
         taskLabelRepository.Delete(taskLabel);
+        await EnqueueDashboardInvalidationAsync(task.ProjectId, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ServiceResult.Success(HttpStatusCode.NoContent);
     }
+
+    private Task EnqueueDashboardInvalidationAsync(int projectId, CancellationToken cancellationToken) =>
+        eventOutbox.EnqueueAsync(
+            () => new ProjectDashboardInvalidationRequestedEvent(
+                EventId: Guid.NewGuid(),
+                ProjectId: projectId,
+                OccurredAt: dateTimeProvider.UtcNow),
+            cancellationToken);
 }

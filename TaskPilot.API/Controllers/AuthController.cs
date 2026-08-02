@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using TaskPilot.API.Features.Platform.RateLimiting;
 using TaskPilot.Application.Features.Auth.Dtos;
 using TaskPilot.Application.Features.Auth.Services;
 
@@ -10,6 +12,7 @@ namespace TaskPilot.API.Controllers;
 public class AuthController(IAuthService authService): CustomBaseController
 {
     [HttpPost("login")]
+    [EnableRateLimiting(TaskPilotRateLimitingExtensions.AuthPolicy)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
         var result = await authService.LoginAsync(request, cancellationToken);
@@ -17,6 +20,7 @@ public class AuthController(IAuthService authService): CustomBaseController
     }
 
     [HttpPost("register")] 
+    [EnableRateLimiting(TaskPilotRateLimitingExtensions.AuthPolicy)]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
     {
         var result = await authService.RegisterAsync(request, cancellationToken);
@@ -32,6 +36,7 @@ public class AuthController(IAuthService authService): CustomBaseController
     }
 
     [HttpPost("refresh-token")]
+    [EnableRateLimiting(TaskPilotRateLimitingExtensions.AuthPolicy)]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
     {
         var result = await authService.RefreshTokenAsync(request, cancellationToken);

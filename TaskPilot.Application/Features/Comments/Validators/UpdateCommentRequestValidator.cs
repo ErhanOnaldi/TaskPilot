@@ -11,6 +11,6 @@ public sealed class UpdateCommentRequestValidator : AbstractValidator<UpdateComm
             .Cascade(CascadeMode.Stop)
             .NotEmpty().WithMessage("Comment content is required.")
             .Must(content => !string.IsNullOrWhiteSpace(content)).WithMessage("Comment content is required.")
-            .MaximumLength(4000).WithMessage("Comment content must be at most 4000 characters.");
+            .MaximumLength(2000).WithMessage("Comment content must be at most 2000 characters.");
     }
 }

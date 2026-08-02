@@ -103,6 +103,42 @@ public class ProjectServiceTests
         Assert.Equal(ProjectStatus.Archived, project.Status);
     }
 
+    [Theory]
+    [InlineData(Role.Member)]
+    [InlineData(Role.Guest)]
+    public async Task GetProjectsAsync_filters_limited_workspace_roles_at_repository_boundary(Role workspaceRole)
+    {
+        var projectRepository = new FakeProjectRepository();
+        projectRepository.Projects.AddRange(
+        [
+            new ProjectEntity
+            {
+                Id = 20,
+                WorkspaceId = 10,
+                Name = "Visible",
+                Status = ProjectStatus.Active,
+                Members = [new ProjectMember { ProjectId = 20, UserId = 2, Role = ProjectRole.TeamMember }]
+            },
+            new ProjectEntity { Id = 21, WorkspaceId = 10, Name = "Hidden", Status = ProjectStatus.Active }
+        ]);
+        var workspaceRepository = new FakeWorkspaceRepository();
+        workspaceRepository.Workspaces.Add(new WorkSpace { Id = 10, Name = "Engineering" });
+        var workspaceMemberRepository = new FakeWorkspaceMemberRepository();
+        workspaceMemberRepository.Members.Add(new WorkspaceMember { WorkspaceId = 10, UserId = 2, Role = workspaceRole });
+        var service = CreateService(
+            projectRepository,
+            new FakeProjectMemberRepository(projectRepository),
+            workspaceRepository,
+            workspaceMemberRepository,
+            2);
+
+        var result = await service.GetProjectsAsync(10, new ProjectQueryParameters(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, projectRepository.LastProjectMemberUserId);
+        Assert.Collection(result.Data!.Items, project => Assert.Equal(20, project.Id));
+    }
+
     private static ProjectService CreateService(
         FakeProjectRepository projectRepository,
         FakeProjectMemberRepository projectMemberRepository,
@@ -179,6 +215,22 @@ public class ProjectServiceTests
         public Task<PagedResponse<ProjectEntity>> GetProjectsByWorkspaceIdAsync(int workspaceId, ProjectQueryParameters query, CancellationToken cancellationToken)
         {
             var projects = Projects.Where(project => project.WorkspaceId == workspaceId && project.Status != ProjectStatus.Archived).ToList();
+            return Task.FromResult(PagedResponse<ProjectEntity>.Create(projects, query.PageNumber, query.PageSize, projects.Count));
+        }
+
+        public int? LastProjectMemberUserId { get; private set; }
+
+        public Task<PagedResponse<ProjectEntity>> GetProjectsByWorkspaceIdAsync(
+            int workspaceId,
+            int? projectMemberUserId,
+            ProjectQueryParameters query,
+            CancellationToken cancellationToken)
+        {
+            LastProjectMemberUserId = projectMemberUserId;
+            var projects = Projects
+                .Where(project => project.WorkspaceId == workspaceId && project.Status != ProjectStatus.Archived)
+                .Where(project => !projectMemberUserId.HasValue || project.Members.Any(member => member.UserId == projectMemberUserId.Value))
+                .ToList();
             return Task.FromResult(PagedResponse<ProjectEntity>.Create(projects, query.PageNumber, query.PageSize, projects.Count));
         }
 

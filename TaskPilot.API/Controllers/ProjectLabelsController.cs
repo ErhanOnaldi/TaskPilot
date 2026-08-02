@@ -21,4 +21,23 @@ public class ProjectLabelsController(ILabelService labelService) : CustomBaseCon
     {
         return CreateActionResult(await labelService.CreateLabelAsync(projectId, request, cancellationToken));
     }
+
+    [HttpPut("{labelId:int}")]
+    public async Task<IActionResult> UpdateLabel(
+        [FromRoute] int projectId,
+        [FromRoute] int labelId,
+        [FromBody] UpdateLabelRequest request,
+        CancellationToken cancellationToken)
+    {
+        return CreateActionResult(await labelService.UpdateLabelAsync(projectId, labelId, request, cancellationToken));
+    }
+
+    [HttpDelete("{labelId:int}")]
+    public async Task<IActionResult> DeleteLabel(
+        [FromRoute] int projectId,
+        [FromRoute] int labelId,
+        CancellationToken cancellationToken)
+    {
+        return CreateActionResult(await labelService.DeleteLabelAsync(projectId, labelId, cancellationToken));
+    }
 }

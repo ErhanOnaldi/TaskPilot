@@ -7,6 +7,7 @@ using TaskPilot.Application.Features.Tasks.Dtos;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Notifications;
 using TaskPilot.Application.Interfaces.Persistence.Tasks;
+using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Domain.Entities;
 
 namespace TaskPilot.Application.Tests;
@@ -73,6 +74,31 @@ public class NotificationEventHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_workspace_member_invited_event_creates_idempotent_notification_for_invitee()
+    {
+        var notifications = new FakeNotificationRepository();
+        var unitOfWork = new FakeUnitOfWork();
+        var handler = CreateHandler(notifications, new FakeTaskRepository(), unitOfWork);
+        var eventId = Guid.NewGuid();
+        var invitation = new WorkspaceMemberInvitedEvent(
+            eventId,
+            WorkspaceId: 10,
+            InvitedUserId: 2,
+            InvitedByUserId: 1,
+            DateTime.UtcNow);
+
+        await handler.HandleAsync(invitation, CancellationToken.None);
+        await handler.HandleAsync(invitation, CancellationToken.None);
+
+        var notification = Assert.Single(notifications.Notifications);
+        Assert.Equal(2, notification.UserId);
+        Assert.Equal("WorkspaceMemberInvited", notification.Type);
+        Assert.Equal(10, notification.RelatedEntityId);
+        Assert.Equal(eventId, notification.SourceEventId);
+        Assert.Equal(1, unitOfWork.SaveChangesCallCount);
+    }
+
+    [Fact]
     public async Task HandleAsync_CommentAddedEvent_notifies_creator_and_assignee_except_author()
     {
         var notifications = new FakeNotificationRepository();
@@ -127,7 +153,7 @@ public class NotificationEventHandlerTests
         FakeTaskRepository tasks,
         FakeUnitOfWork unitOfWork)
     {
-        return new NotificationEventHandler(notifications, tasks, unitOfWork);
+        return new NotificationEventHandler(notifications, tasks, unitOfWork, new FixedClock());
     }
 
     private sealed class FakeUnitOfWork : IUnitOfWork
@@ -139,6 +165,11 @@ public class NotificationEventHandlerTests
             SaveChangesCallCount++;
             return Task.FromResult(1);
         }
+    }
+
+    private sealed class FixedClock : IDateTimeProvider
+    {
+        public DateTime UtcNow { get; } = new(2026, 8, 2, 12, 0, 0, DateTimeKind.Utc);
     }
 
     private sealed class FakeNotificationRepository : INotificationRepository

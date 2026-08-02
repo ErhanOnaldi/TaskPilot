@@ -12,4 +12,10 @@ public interface ILabelRepository : IGenericRepository<Label>
         int projectId,
         string name,
         CancellationToken cancellationToken);
+
+    Task<bool> ExistsByNameInProjectExceptLabelAsync(
+        int projectId,
+        int labelId,
+        string name,
+        CancellationToken cancellationToken);
 }

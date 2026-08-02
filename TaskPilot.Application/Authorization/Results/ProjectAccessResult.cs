@@ -8,7 +8,8 @@ public sealed record ProjectAccessResult(
     WorkSpace Workspace,
     WorkspaceMember WorkspaceMember,
     int CurrentUserId,
-    ServiceResult? Failure)
+    ServiceResult? Failure,
+    ProjectMember? ProjectMember = null)
 {
     public static ProjectAccessResult Fail(ServiceResult failure, int currentUserId)
     {

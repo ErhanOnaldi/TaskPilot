@@ -57,6 +57,21 @@ public sealed class AuthorizationHandlerTests
     }
 
     [Fact]
+    public async Task WorkspaceAccessHandler_succeeds_for_invite_access_when_workspace_member_is_manager()
+    {
+        var requirement = new WorkspaceAccessRequirement(WorkspaceAccessLevel.Invite);
+        var resource = new WorkspaceAuthorizationContext(
+            new WorkSpace { Id = 10, Name = "Engineering" },
+            new WorkspaceMember { WorkspaceId = 10, UserId = 1, Role = Role.Manager },
+            CurrentUserId: 1);
+        var context = CreateContext(requirement, resource);
+
+        await new WorkspaceAccessHandler().HandleAsync(context);
+
+        Assert.True(context.HasSucceeded);
+    }
+
+    [Fact]
     public async Task ProjectAccessHandler_succeeds_for_manage_access_when_user_is_project_manager()
     {
         var requirement = new ProjectAccessRequirement(ProjectAccessLevel.Manage);
@@ -96,6 +111,48 @@ public sealed class AuthorizationHandlerTests
         await new ProjectAccessHandler().HandleAsync(context);
 
         Assert.True(context.HasSucceeded);
+    }
+
+    [Fact]
+    public async Task ProjectAccessHandler_fails_for_read_access_when_workspace_member_has_no_project_membership()
+    {
+        var requirement = new ProjectAccessRequirement(ProjectAccessLevel.Read);
+        var resource = CreateProjectContext(
+            new WorkspaceMember { WorkspaceId = 10, UserId = 2, Role = Role.Member },
+            projectMember: null);
+        var context = CreateContext(requirement, resource);
+
+        await new ProjectAccessHandler().HandleAsync(context);
+
+        Assert.False(context.HasSucceeded);
+    }
+
+    [Fact]
+    public async Task ProjectAccessHandler_fails_for_participant_access_when_project_member_is_guest()
+    {
+        var requirement = new ProjectAccessRequirement(ProjectAccessLevel.Participant);
+        var resource = CreateProjectContext(
+            new WorkspaceMember { WorkspaceId = 10, UserId = 2, Role = Role.Member },
+            new ProjectMember { ProjectId = 20, UserId = 2, Role = ProjectRole.Guest });
+        var context = CreateContext(requirement, resource);
+
+        await new ProjectAccessHandler().HandleAsync(context);
+
+        Assert.False(context.HasSucceeded);
+    }
+
+    [Fact]
+    public async Task ProjectAccessHandler_fails_for_participant_access_when_workspace_member_is_guest()
+    {
+        var requirement = new ProjectAccessRequirement(ProjectAccessLevel.Participant);
+        var resource = CreateProjectContext(
+            new WorkspaceMember { WorkspaceId = 10, UserId = 2, Role = Role.Guest },
+            new ProjectMember { ProjectId = 20, UserId = 2, Role = ProjectRole.TeamMember });
+        var context = CreateContext(requirement, resource);
+
+        await new ProjectAccessHandler().HandleAsync(context);
+
+        Assert.False(context.HasSucceeded);
     }
 
     private static ProjectAuthorizationContext CreateProjectContext(

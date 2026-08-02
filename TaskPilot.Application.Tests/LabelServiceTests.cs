@@ -6,8 +6,11 @@ using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Authorization.Results;
 using TaskPilot.Application.Features.Labels.Dtos;
 using TaskPilot.Application.Features.Labels.Services;
+using TaskPilot.Application.Events;
+using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Labels;
+using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Mappings;
 using TaskPilot.Domain.Entities;
 
@@ -41,18 +44,97 @@ public class LabelServiceTests
         Assert.Equal(System.Net.HttpStatusCode.NotFound, result.Status);
     }
 
+    [Fact]
+    public async Task UpdateLabelAsync_updates_owned_project_label()
+    {
+        var labelRepository = new FakeLabelRepository();
+        labelRepository.Labels.Add(new Label { Id = 5, ProjectId = 20, Name = "Bug", Color = "#111111" });
+        var service = CreateService(labelRepository, new FakeTaskLabelRepository(), new FakeTaskRepository());
+
+        var result = await service.UpdateLabelAsync(
+            20,
+            5,
+            new UpdateLabelRequest("Defect", "#222222"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Defect", labelRepository.Labels.Single().Name);
+        Assert.Equal("#222222", labelRepository.Labels.Single().Color);
+    }
+
+    [Fact]
+    public async Task DeleteLabelAsync_removes_label_and_invalidates_dashboard()
+    {
+        var labelRepository = new FakeLabelRepository();
+        labelRepository.Labels.Add(new Label { Id = 5, ProjectId = 20, Name = "Bug", Color = "#111111" });
+        var outbox = new FakeEventOutbox();
+        var service = CreateService(labelRepository, new FakeTaskLabelRepository(), new FakeTaskRepository(), outbox);
+
+        var result = await service.DeleteLabelAsync(20, 5, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(labelRepository.Labels);
+        var invalidation = Assert.IsType<ProjectDashboardInvalidationRequestedEvent>(Assert.Single(outbox.Events));
+        Assert.Equal(20, invalidation.ProjectId);
+    }
+
+    [Fact]
+    public async Task AddLabelToTaskAsync_invalidates_dashboard()
+    {
+        var labelRepository = new FakeLabelRepository();
+        labelRepository.Labels.Add(new Label { Id = 5, ProjectId = 20, Name = "Bug", Color = "#111111" });
+        var taskRepository = new FakeTaskRepository();
+        taskRepository.Tasks.Add(new TaskItem { Id = 10, ProjectId = 20, Title = "Task", CreatedByUserId = 1 });
+        var outbox = new FakeEventOutbox();
+        var service = CreateService(labelRepository, new FakeTaskLabelRepository(), taskRepository, outbox);
+
+        var result = await service.AddLabelToTaskAsync(10, 5, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.IsType<ProjectDashboardInvalidationRequestedEvent>(Assert.Single(outbox.Events));
+    }
+
+    [Fact]
+    public async Task UpdateLabelAsync_returns_forbidden_when_manage_access_is_denied()
+    {
+        var labelRepository = new FakeLabelRepository();
+        labelRepository.Labels.Add(new Label { Id = 5, ProjectId = 20, Name = "Bug", Color = "#111111" });
+        var accessControl = new FakeAccessControlService(
+            ServiceResult.Fail("Forbidden", System.Net.HttpStatusCode.Forbidden));
+        var service = CreateService(
+            labelRepository,
+            new FakeTaskLabelRepository(),
+            new FakeTaskRepository(),
+            accessControl: accessControl);
+
+        var result = await service.UpdateLabelAsync(
+            20,
+            5,
+            new UpdateLabelRequest("Defect", "#222222"),
+            CancellationToken.None);
+
+        Assert.True(result.IsFail);
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, result.Status);
+        Assert.Equal(ProjectAccessLevel.Manage, accessControl.LastAccessLevel);
+        Assert.Equal("Bug", labelRepository.Labels.Single().Name);
+    }
+
     private static LabelService CreateService(
         FakeLabelRepository labelRepository,
         FakeTaskLabelRepository taskLabelRepository,
-        FakeTaskRepository taskRepository)
+        FakeTaskRepository taskRepository,
+        FakeEventOutbox? eventOutbox = null,
+        FakeAccessControlService? accessControl = null)
     {
         return new LabelService(
             labelRepository,
             taskRepository,
             taskLabelRepository,
             new FakeUnitOfWork(),
-            new FakeAccessControlService(),
-            CreateMapper());
+            accessControl ?? new FakeAccessControlService(),
+            CreateMapper(),
+            new FakeDateTimeProvider(),
+            eventOutbox ?? new FakeEventOutbox());
     }
 
     private static IMapper CreateMapper()
@@ -77,6 +159,12 @@ public class LabelServiceTests
         {
             LastExistsByNameRequest = (projectId, name);
             return Task.FromResult(ExistsByName);
+        }
+
+        public Task<bool> ExistsByNameInProjectExceptLabelAsync(int projectId, int labelId, string name, CancellationToken cancellationToken)
+        {
+            LastExistsByNameRequest = (projectId, name);
+            return Task.FromResult(Labels.Any(label => label.ProjectId == projectId && label.Id != labelId && label.Name == name));
         }
 
         public Task<List<Label>> GetAllAsync() => Task.FromResult(Labels);
@@ -132,8 +220,15 @@ public class LabelServiceTests
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
     }
 
-    private sealed class FakeAccessControlService : IAccessControlService
+    private sealed class FakeDateTimeProvider : IDateTimeProvider
     {
+        public DateTime UtcNow { get; } = new(2026, 8, 2, 12, 0, 0, DateTimeKind.Utc);
+    }
+
+    private sealed class FakeAccessControlService(ServiceResult? failure = null) : IAccessControlService
+    {
+        public ProjectAccessLevel? LastAccessLevel { get; private set; }
+
         public Task<WorkspaceAccessResult> AuthorizeWorkspaceAsync(
             int workspaceId,
             WorkspaceAccessLevel accessLevel,
@@ -149,7 +244,23 @@ public class LabelServiceTests
             bool requireActiveProject,
             CancellationToken cancellationToken)
         {
-            return Task.FromResult(new ProjectAccessResult(null!, null!, null!, 1, null));
+            LastAccessLevel = accessLevel;
+            return Task.FromResult(failure is null
+                ? new ProjectAccessResult(null!, null!, null!, 1, null)
+                : ProjectAccessResult.Fail(failure, 1));
         }
+    }
+
+    private sealed class FakeEventOutbox : IEventOutbox
+    {
+        public List<IIntegrationEvent> Events { get; } = [];
+
+        public Task EnqueueAsync(Func<IIntegrationEvent> eventFactory, CancellationToken cancellationToken)
+        {
+            Events.Add(eventFactory());
+            return Task.CompletedTask;
+        }
+
+        public Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

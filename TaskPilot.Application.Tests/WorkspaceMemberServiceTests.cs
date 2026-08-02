@@ -6,13 +6,17 @@ using TaskPilot.Application;
 using TaskPilot.Application.Authorization.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Common.Pagination;
+using TaskPilot.Application.Events;
 using TaskPilot.Application.Features.Workspace.Dtos;
 using TaskPilot.Application.Authorization.Results;
 using TaskPilot.Application.Features.WorkspaceMembers.Dtos;
 using TaskPilot.Application.Features.WorkspaceMembers.Services;
 using TaskPilot.Application.Interfaces.Infrastructure;
+using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.User;
+using TaskPilot.Application.Interfaces.Persistence.Project;
+using TaskPilot.Application.Interfaces.Persistence.Tasks;
 using TaskPilot.Application.Interfaces.Persistence.Workspace;
 using TaskPilot.Application.Mappings;
 using TaskPilot.Domain.Entities;
@@ -34,12 +38,36 @@ public class WorkspaceMemberServiceTests
 
         var result = await service.AddMemberAsync(
             10,
-            new AddWorkspaceMemberRequest(2, Role.Member),
+            new AddWorkspaceMemberRequest("member@example.com", Role.Member),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Data?.UserId);
         Assert.Contains(memberRepository.Members, member => member.WorkspaceId == 10 && member.UserId == 2);
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_email_invite_enqueues_workspace_member_invited_event()
+    {
+        var workspaceRepository = new FakeWorkspaceRepository();
+        workspaceRepository.Workspaces.Add(new WorkSpace { Id = 10, Name = "Engineering" });
+        var memberRepository = new FakeWorkspaceMemberRepository();
+        memberRepository.Members.Add(new WorkspaceMember { WorkspaceId = 10, UserId = 1, Role = Role.Owner });
+        var userRepository = new FakeUserRepository();
+        userRepository.Users.Add(new User { Id = 2, Email = "member@example.com", PasswordHash = "hash" });
+        var eventOutbox = new FakeEventOutbox();
+        var service = CreateService(workspaceRepository, memberRepository, userRepository, currentUserId: 1, eventOutbox);
+
+        var result = await service.AddMemberAsync(
+            10,
+            new AddWorkspaceMemberRequest("member@example.com"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var invitation = Assert.IsType<WorkspaceMemberInvitedEvent>(Assert.Single(eventOutbox.PendingEvents));
+        Assert.Equal(10, invitation.WorkspaceId);
+        Assert.Equal(2, invitation.InvitedUserId);
+        Assert.Equal(1, invitation.InvitedByUserId);
     }
 
     [Fact]
@@ -56,7 +84,7 @@ public class WorkspaceMemberServiceTests
 
         var result = await service.AddMemberAsync(
             10,
-            new AddWorkspaceMemberRequest(2, Role.Member),
+            new AddWorkspaceMemberRequest("member@example.com", Role.Member),
             CancellationToken.None);
 
         Assert.True(result.IsFail);
@@ -85,18 +113,44 @@ public class WorkspaceMemberServiceTests
         Assert.Equal(Role.Member, memberRepository.Members.Single(member => member.UserId == 2).Role);
     }
 
+    [Fact]
+    public async Task AddMemberAsync_rejects_manager_inviting_any_role_other_than_member()
+    {
+        var workspaceRepository = new FakeWorkspaceRepository();
+        workspaceRepository.Workspaces.Add(new WorkSpace { Id = 10, Name = "Engineering" });
+        var memberRepository = new FakeWorkspaceMemberRepository();
+        memberRepository.Members.Add(new WorkspaceMember { WorkspaceId = 10, UserId = 1, Role = Role.Manager });
+        var userRepository = new FakeUserRepository();
+        userRepository.Users.Add(new User { Id = 2, Email = "guest@example.com", PasswordHash = "hash" });
+        var service = CreateService(workspaceRepository, memberRepository, userRepository, currentUserId: 1);
+
+        var result = await service.AddMemberAsync(
+            10,
+            new AddWorkspaceMemberRequest("guest@example.com", Role.Guest),
+            CancellationToken.None);
+
+        Assert.True(result.IsFail);
+        Assert.Equal(HttpStatusCode.Forbidden, result.Status);
+        Assert.DoesNotContain(memberRepository.Members, member => member.UserId == 2);
+    }
+
     private static WorkspaceMemberService CreateService(
         FakeWorkspaceRepository workspaceRepository,
         FakeWorkspaceMemberRepository memberRepository,
         FakeUserRepository userRepository,
-        int currentUserId)
+        int currentUserId,
+        FakeEventOutbox? eventOutbox = null)
     {
         return new WorkspaceMemberService(
             new FakeUnitOfWork(),
             new FakeAccessControlService(workspaceRepository, memberRepository, currentUserId),
             userRepository,
             memberRepository,
-            CreateMapper());
+            new FakeProjectMemberRepository(),
+            new FakeTaskRepository(),
+            CreateMapper(),
+            eventOutbox ?? new FakeEventOutbox(),
+            new FakeDateTimeProvider());
     }
 
     private static IMapper CreateMapper()
@@ -113,12 +167,30 @@ public class WorkspaceMemberServiceTests
         public int GetRequiredUserId() => userId;
     }
 
+    private sealed class FakeDateTimeProvider : IDateTimeProvider
+    {
+        public DateTime UtcNow { get; } = new(2026, 8, 2, 12, 0, 0, DateTimeKind.Utc);
+    }
+
     private sealed class FakeUnitOfWork : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(1);
         }
+    }
+
+    private sealed class FakeEventOutbox : IEventOutbox
+    {
+        public List<IIntegrationEvent> PendingEvents { get; } = [];
+
+        public Task EnqueueAsync(Func<IIntegrationEvent> eventFactory, CancellationToken cancellationToken)
+        {
+            PendingEvents.Add(eventFactory());
+            return Task.CompletedTask;
+        }
+
+        public Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeAccessControlService(
@@ -258,5 +330,38 @@ public class WorkspaceMemberServiceTests
         public Task<bool> AnyAsync(Expression<Func<User, bool>> predicate) => Task.FromResult(Users.AsQueryable().Any(predicate));
         public void Update(User entity) { }
         public void Delete(User entity) => Users.Remove(entity);
+    }
+
+    private sealed class FakeProjectMemberRepository : IProjectMemberRepository
+    {
+        private readonly List<ProjectMember> _members = [];
+        public Task<List<ProjectMember>> GetMembersByProjectIdAsync(int projectId, CancellationToken cancellationToken) => Task.FromResult(_members.Where(x => x.ProjectId == projectId).ToList());
+        public Task<ProjectMember?> GetMemberAsync(int projectId, int userId, CancellationToken cancellationToken) => Task.FromResult(_members.FirstOrDefault(x => x.ProjectId == projectId && x.UserId == userId));
+        public Task<bool> IsProjectMemberAsync(int projectId, int userId, CancellationToken cancellationToken) => Task.FromResult(_members.Any(x => x.ProjectId == projectId && x.UserId == userId));
+        public Task<bool> IsProjectManagerAsync(int projectId, int userId, CancellationToken cancellationToken) => Task.FromResult(_members.Any(x => x.ProjectId == projectId && x.UserId == userId && x.Role == ProjectRole.ProjectManager));
+        public Task<int> CountProjectManagersAsync(int projectId, CancellationToken cancellationToken) => Task.FromResult(_members.Count(x => x.ProjectId == projectId && x.Role == ProjectRole.ProjectManager));
+        public Task<List<ProjectMember>> GetAllAsync() => Task.FromResult(_members);
+        public Task<List<ProjectMember>> GetAllPagedAsync(int pageNumber, int pageSize) => Task.FromResult(_members.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList());
+        public IQueryable<ProjectMember> Where(Expression<Func<ProjectMember, bool>> predicate) => _members.AsQueryable().Where(predicate);
+        public ValueTask<ProjectMember?> GetByIdAsync(int id) => ValueTask.FromResult(_members.FirstOrDefault(x => x.Id == id));
+        public ValueTask AddAsync(ProjectMember entity) { _members.Add(entity); return ValueTask.CompletedTask; }
+        public Task<bool> AnyAsync(Expression<Func<ProjectMember, bool>> predicate) => Task.FromResult(_members.AsQueryable().Any(predicate));
+        public void Update(ProjectMember entity) { }
+        public void Delete(ProjectMember entity) => _members.Remove(entity);
+    }
+
+    private sealed class FakeTaskRepository : ITaskRepository
+    {
+        private readonly List<TaskItem> _tasks = [];
+        public Task<PagedResponse<TaskItem>> GetTasksByProjectIdAsync(int projectId, TaskPilot.Application.Features.Tasks.Dtos.TaskQueryParameters query, CancellationToken cancellationToken) =>
+            Task.FromResult(PagedResponse<TaskItem>.Create([], query.PageNumber, query.PageSize, 0));
+        public Task<List<TaskItem>> GetAllAsync() => Task.FromResult(_tasks);
+        public Task<List<TaskItem>> GetAllPagedAsync(int pageNumber, int pageSize) => Task.FromResult(_tasks.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList());
+        public IQueryable<TaskItem> Where(Expression<Func<TaskItem, bool>> predicate) => _tasks.AsQueryable().Where(predicate);
+        public ValueTask<TaskItem?> GetByIdAsync(int id) => ValueTask.FromResult(_tasks.FirstOrDefault(x => x.Id == id));
+        public ValueTask AddAsync(TaskItem entity) { _tasks.Add(entity); return ValueTask.CompletedTask; }
+        public Task<bool> AnyAsync(Expression<Func<TaskItem, bool>> predicate) => Task.FromResult(_tasks.AsQueryable().Any(predicate));
+        public void Update(TaskItem entity) { }
+        public void Delete(TaskItem entity) => _tasks.Remove(entity);
     }
 }

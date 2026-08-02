@@ -30,9 +30,28 @@ public class ProjectRepository : GenericRepository<Project>, IProjectRepository
         ProjectQueryParameters query,
         CancellationToken cancellationToken)
     {
+        return await GetProjectsByWorkspaceIdAsync(
+            workspaceId,
+            projectMemberUserId: null,
+            query,
+            cancellationToken);
+    }
+
+    public async Task<PagedResponse<Project>> GetProjectsByWorkspaceIdAsync(
+        int workspaceId,
+        int? projectMemberUserId,
+        ProjectQueryParameters query,
+        CancellationToken cancellationToken)
+    {
         var projectQuery = _dbContext.Projects
             .AsNoTracking()
             .Where(project => project.WorkspaceId == workspaceId);
+
+        if (projectMemberUserId.HasValue)
+        {
+            projectQuery = projectQuery.Where(project =>
+                project.Members.Any(member => member.UserId == projectMemberUserId.Value));
+        }
 
         if (query.Status.HasValue)
         {

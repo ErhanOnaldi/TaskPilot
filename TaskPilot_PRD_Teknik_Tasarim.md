@@ -1530,6 +1530,8 @@ Amaç:
 
 AI'ı oyuncağa değil, gerçek bir product feature'a dönüştürmek.
 
+> **Detaylı tasarım:** Bu faz `TaskPilot_AI_Teknik_Tasarim.md` dokümanında AI-0'dan AI-8'e kadar alt fazlara bölünerek detaylandırılmıştır. Sistem promptu, structured output, function tools, middleware, session/context yönetimi, RAG (pgvector), multi-agent workflow, MCP server ve A2A dahil Microsoft Agent Framework'ün tüm katmanlarını kapsar. Aşağıdaki liste yalnızca ilk alt fazın (AI-1) özetidir.
+
 Yapılacaklar:
 
 - AiSuggestion entity

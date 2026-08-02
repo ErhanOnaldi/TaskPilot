@@ -5,9 +5,12 @@ using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Events;
 using TaskPilot.Application.Features.Comments.Dtos;
 using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
+using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Comments;
 using TaskPilot.Domain.Entities;
+using TaskPilot.Application.Features.Semantic.Contracts;
+using TaskPilot.Domain.AI.Semantic;
 
 namespace TaskPilot.Application.Features.Comments.Services;
 
@@ -17,7 +20,8 @@ public class CommentService(
     IUnitOfWork unitOfWork,
     IAccessControlService accessControlService,
     IMapper mapper,
-    IEventPublisher eventPublisher) : ICommentService
+    IEventOutbox eventOutbox,
+    IDateTimeProvider dateTimeProvider) : ICommentService
 {
     public async Task<ServiceResult<List<CommentResponse>>> GetCommentsAsync(int taskId, CancellationToken cancellationToken)
     {
@@ -43,7 +47,7 @@ public class CommentService(
         if (task is null) return ServiceResult<CommentResponse>.Fail("Task not found.", HttpStatusCode.NotFound);
         var access = await accessControlService.AuthorizeProjectAsync(
             task.ProjectId,
-            ProjectAccessLevel.Participant,
+            ProjectAccessLevel.Read,
             requireActiveProject: true,
             cancellationToken);
         if (access.Failure is not null)
@@ -53,7 +57,7 @@ public class CommentService(
                 : ServiceResult<CommentResponse>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
         }
 
-        var now = DateTime.UtcNow;
+        var now = dateTimeProvider.UtcNow;
         var comment = new Comment
         {
             TaskId = taskId,
@@ -63,16 +67,18 @@ public class CommentService(
             UpdatedAt = now
         };
         await commentRepository.AddAsync(comment);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        await eventPublisher.PublishAsync(
-            new CommentAddedEvent(
+        await eventOutbox.EnqueueAsync(
+            () => new CommentAddedEvent(
                 EventId: Guid.NewGuid(),
                 CommentId: comment.Id,
                 TaskId: task.Id,
                 ProjectId: task.ProjectId,
                 AuthorUserId: access.CurrentUserId,
-                OccurredAt: DateTime.UtcNow),
+                OccurredAt: dateTimeProvider.UtcNow),
             cancellationToken);
+        await EnqueueDashboardInvalidationAsync(task.ProjectId, cancellationToken);
+        await EnqueueSemanticChangeAsync(comment, task.ProjectId, access.Workspace.Id, false, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
         return ServiceResult<CommentResponse>.Success(mapper.Map<CommentResponse>(comment), HttpStatusCode.Created);
     }
 
@@ -106,7 +112,9 @@ public class CommentService(
         }
 
         comment.Content = request.Content.Trim();
-        comment.UpdatedAt = DateTime.UtcNow;
+        comment.UpdatedAt = dateTimeProvider.UtcNow;
+        await EnqueueDashboardInvalidationAsync(task.ProjectId, cancellationToken);
+        await EnqueueSemanticChangeAsync(comment, task.ProjectId, access.Workspace.Id, false, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ServiceResult.Success(HttpStatusCode.NoContent);
     }
@@ -141,7 +149,37 @@ public class CommentService(
         }
 
         commentRepository.Delete(comment);
+        await EnqueueDashboardInvalidationAsync(task.ProjectId, cancellationToken);
+        await EnqueueSemanticChangeAsync(comment, task.ProjectId, access.Workspace.Id, true, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return ServiceResult.Success(HttpStatusCode.NoContent);
     }
+
+    private Task EnqueueDashboardInvalidationAsync(int projectId, CancellationToken cancellationToken)
+    {
+        return eventOutbox.EnqueueAsync(
+            () => new ProjectDashboardInvalidationRequestedEvent(
+                EventId: Guid.NewGuid(),
+                ProjectId: projectId,
+                OccurredAt: dateTimeProvider.UtcNow),
+            cancellationToken);
+    }
+
+    private Task EnqueueSemanticChangeAsync(
+        Comment comment,
+        int projectId,
+        int workspaceId,
+        bool isDeleted,
+        CancellationToken cancellationToken) =>
+        eventOutbox.EnqueueAsync(
+            () => new SemanticContentChangedEvent(
+                Guid.NewGuid(),
+                SemanticSourceType.Comment,
+                comment.Id,
+                workspaceId,
+                projectId,
+                comment.Content,
+                dateTimeProvider.UtcNow,
+                isDeleted),
+            cancellationToken);
 }

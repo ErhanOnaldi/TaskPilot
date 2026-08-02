@@ -38,5 +38,11 @@ public class WorkspaceController(IWorkspaceService workspaceService) : CustomBas
     {
         return CreateActionResult(await workspaceService.ArchiveWorkspaceAsync(id, cancellationToken));
     }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> ArchiveByDelete(int id, CancellationToken cancellationToken)
+    {
+        return CreateActionResult(await workspaceService.ArchiveWorkspaceAsync(id, cancellationToken));
+    }
     
 }

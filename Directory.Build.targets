@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    OllamaSharp 5.4.30 ships a consumer source generator built with a newer
+    Roslyn compiler than the stable .NET 10 SDK. TaskPilot uses OllamaSharp's
+    runtime IChatClient adapter only, so the generator is intentionally removed.
+  -->
+  <Target Name="RemoveIncompatibleOllamaSharpSourceGenerator"
+          AfterTargets="ResolveLockFileAnalyzers"
+          BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)"
+                Condition="'%(Analyzer.NuGetPackageId)' == 'OllamaSharp'" />
+    </ItemGroup>
+  </Target>
+</Project>

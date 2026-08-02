@@ -11,8 +11,14 @@ using TaskPilot.Application.Interfaces.Persistence.Project;
 using TaskPilot.Application.Interfaces.Persistence.Tasks;
 using TaskPilot.Application.Interfaces.Persistence.User;
 using TaskPilot.Application.Interfaces.Persistence.Workspace;
+using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
+using TaskPilot.Application.Interfaces.Persistence.Messaging;
 using TaskPilot.Persistence.EntityRepositories;
 using TaskPilot.Persistence.Interceptors;
+using TaskPilot.Persistence.Messaging;
+using Pgvector.EntityFrameworkCore;
+using TaskPilot.Application.Features.Notifications.Services;
+using TaskPilot.Persistence.Features.Notifications;
 
 namespace TaskPilot.Persistence.Extensions;
 
@@ -28,6 +34,7 @@ public static class PersistenceExtensions
                 configuration.GetConnectionString("PostgreSql"),
                 npgsqlOptions =>
                 {
+                    npgsqlOptions.UseVector();
                     npgsqlOptions.MigrationsAssembly(
                         typeof(AppDbContext).Assembly.FullName);
                 });
@@ -36,6 +43,9 @@ public static class PersistenceExtensions
         });
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IEventOutbox, PersistenceEventOutbox>();
+        services.AddScoped<IOutboxMessageRepository, OutboxMessageRepository>();
+        services.AddScoped<IInboxMessageRepository, InboxMessageRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
@@ -44,6 +54,7 @@ public static class PersistenceExtensions
         services.AddScoped<IProjectMemberRepository, ProjectMemberRepository>();
         services.AddScoped<ITaskRepository, TaskRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<IDeadlineReminderPort, DeadlineReminderPort>();
         services.AddScoped<IDashboardRepository, DashboardRepository>();
         services.AddScoped<ICommentRepository, CommentRepository>();
         services.AddScoped<ILabelRepository, LabelRepository>();

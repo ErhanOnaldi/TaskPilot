@@ -10,9 +10,11 @@ using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
 using TaskPilot.Application.Interfaces.Security;
 using TaskPilot.Infrastructure.Authorization.Handlers;
 using TaskPilot.Infrastructure.Authorization.Services;
+using TaskPilot.Infrastructure.Auditing;
 using TaskPilot.Infrastructure.Caching;
 using TaskPilot.Infrastructure.Messaging;
 using TaskPilot.Infrastructure.Messaging.Consumers;
+using TaskPilot.Infrastructure.Messaging.Filters;
 using TaskPilot.Infrastructure.Security;
 
 namespace TaskPilot.Infrastructure.Extensions;
@@ -29,6 +31,7 @@ public static class InfrastructureExtensions
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IAccessControlService, AccessControlService>();
+        services.AddScoped<TaskPilot.Application.Interfaces.Infrastructure.Auditing.IAuditContextAccessor, AuditContextAccessor>();
         services.AddScoped<IAuthorizationHandler, WorkspaceAccessHandler>();
         services.AddScoped<IAuthorizationHandler, ProjectAccessHandler>();
         services.AddStackExchangeRedisCache(options =>
@@ -40,9 +43,13 @@ public static class InfrastructureExtensions
         services.Configure<RabbitMqOptions>(
             configuration.GetSection("RabbitMq"));
         services.AddScoped<IEventPublisher, MassTransitEventPublisher>();
+        services.AddScoped<IIntegrationEventPublisher, MassTransitIntegrationEventPublisher>();
+        services.AddScoped<OutboxDispatcher>();
+        services.AddHostedService<OutboxDispatcherWorker>();
         services.AddMassTransit(busRegistrationConfigurator =>
         {
             busRegistrationConfigurator.AddConsumer<NotificationConsumer>();
+            busRegistrationConfigurator.AddConsumer<IntegrationEventConsumer>();
             busRegistrationConfigurator.SetKebabCaseEndpointNameFormatter();
             busRegistrationConfigurator.UsingRabbitMq((context, rabbitMqBusFactoryConfigurator) =>
             {
@@ -59,6 +66,18 @@ public static class InfrastructureExtensions
                 rabbitMqBusFactoryConfigurator.Message<TaskCreatedEvent>(messageConfigurator => messageConfigurator.SetEntityName("task.created"));
                 rabbitMqBusFactoryConfigurator.Message<TaskAssignedEvent>(messageConfigurator => messageConfigurator.SetEntityName("task.assigned"));
                 rabbitMqBusFactoryConfigurator.Message<CommentAddedEvent>(messageConfigurator => messageConfigurator.SetEntityName("comment.added"));
+                rabbitMqBusFactoryConfigurator.Message<TaskPilot.Application.Messaging.IntegrationEventEnvelope>(
+                    messageConfigurator => messageConfigurator.SetEntityName("taskpilot.integration-events"));
+
+                rabbitMqBusFactoryConfigurator.ReceiveEndpoint("taskpilot.integration-events", endpointConfigurator =>
+                {
+                    endpointConfigurator.PrefetchCount = 10;
+                    endpointConfigurator.ConcurrentMessageLimit = 5;
+                    endpointConfigurator.UseMessageRetry(retryConfigurator =>
+                        retryConfigurator.Interval(3, TimeSpan.FromSeconds(5)));
+                    endpointConfigurator.UseConsumeFilter(typeof(InboxIdempotencyFilter<>), context);
+                    endpointConfigurator.ConfigureConsumer<IntegrationEventConsumer>(context);
+                });
 
                 rabbitMqBusFactoryConfigurator.ReceiveEndpoint("taskpilot.notifications", endpointConfigurator =>
                 {

@@ -26,4 +26,9 @@ public interface IProjectMemberRepository : IGenericRepository<ProjectMember>
     Task<int> CountProjectManagersAsync(
         int projectId,
         CancellationToken cancellationToken);
+
+    Task<List<ProjectMember>> GetUserMembershipsByWorkspaceAsync(
+        int workspaceId,
+        int userId,
+        CancellationToken cancellationToken) => Task.FromResult(new List<ProjectMember>());
 }

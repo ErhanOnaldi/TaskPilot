@@ -35,6 +35,7 @@ public static class ApplicationExtensions
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<INotificationEventHandler, NotificationEventHandler>();
+        services.AddScoped<IDeadlineReminderService, DeadlineReminderService>();
         return services;
     }
     

@@ -61,4 +61,15 @@ public class ProjectMemberRepository : GenericRepository<ProjectMember>, IProjec
                 member => member.ProjectId == projectId && member.Role == ProjectRole.ProjectManager,
                 cancellationToken);
     }
+
+    public Task<List<ProjectMember>> GetUserMembershipsByWorkspaceAsync(
+        int workspaceId,
+        int userId,
+        CancellationToken cancellationToken)
+    {
+        return _dbContext.ProjectMembers
+            .Include(member => member.Project)
+            .Where(member => member.UserId == userId && member.Project!.WorkspaceId == workspaceId)
+            .ToListAsync(cancellationToken);
+    }
 }

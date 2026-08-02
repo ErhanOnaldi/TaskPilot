@@ -7,4 +7,5 @@ public interface INotificationEventHandler
     Task HandleAsync(TaskCreatedEvent taskCreatedEvent, CancellationToken cancellationToken);
     Task HandleAsync(TaskAssignedEvent taskAssignedEvent, CancellationToken cancellationToken);
     Task HandleAsync(CommentAddedEvent commentAddedEvent, CancellationToken cancellationToken);
+    Task HandleAsync(WorkspaceMemberInvitedEvent workspaceMemberInvitedEvent, CancellationToken cancellationToken);
 }

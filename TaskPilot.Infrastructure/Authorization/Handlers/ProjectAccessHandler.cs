@@ -14,19 +14,26 @@ public sealed class ProjectAccessHandler
         ProjectAccessRequirement requirement,
         ProjectAuthorizationContext resource)
     {
-        if (requirement.AccessLevel == ProjectAccessLevel.Read)
-        {
-            context.Succeed(requirement);
-            return Task.CompletedTask;
-        }
-
         if (resource.WorkspaceMember.Role == Role.Owner)
         {
             context.Succeed(requirement);
             return Task.CompletedTask;
         }
 
-        if (requirement.AccessLevel == ProjectAccessLevel.Participant && resource.ProjectMember is not null)
+        if (resource.WorkspaceMember.Role == Role.Guest &&
+            requirement.AccessLevel is ProjectAccessLevel.Participant or ProjectAccessLevel.Manage)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (requirement.AccessLevel == ProjectAccessLevel.Read && resource.ProjectMember is not null)
+        {
+            context.Succeed(requirement);
+            return Task.CompletedTask;
+        }
+
+        if (requirement.AccessLevel == ProjectAccessLevel.Participant &&
+            resource.ProjectMember?.Role is ProjectRole.ProjectManager or ProjectRole.TeamMember)
         {
             context.Succeed(requirement);
             return Task.CompletedTask;

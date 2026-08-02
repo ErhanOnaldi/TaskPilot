@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace TaskPilot.API.ExceptionHandling;
 
@@ -15,16 +16,22 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
         var statusCode = exception switch
         {
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
+            DbUpdateConcurrencyException => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status500InternalServerError
         };
 
         var problemDetails = new ProblemDetails
         {
             Status = statusCode,
-            Title = statusCode == StatusCodes.Status401Unauthorized
-                ? "Unauthorized"
-                : "Unexpected error",
-            Detail = environment.IsDevelopment()
+            Title = statusCode switch
+            {
+                StatusCodes.Status401Unauthorized => "Unauthorized",
+                StatusCodes.Status409Conflict => "Concurrency conflict",
+                _ => "Unexpected error"
+            },
+            Detail = statusCode == StatusCodes.Status409Conflict
+                ? "The resource was changed by another request. Reload it and retry."
+                : environment.IsDevelopment()
                 ? exception.Message
                 : "An unexpected error occurred.",
             Instance = httpContext.Request.Path

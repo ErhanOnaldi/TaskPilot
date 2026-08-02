@@ -31,7 +31,14 @@ public class ProjectService(
             return ServiceResult<PagedResponse<ProjectListItemResponse>>.Fail(access.Failure.ErrorMessages!, access.Failure.Status);
         }
 
-        var projects = await projectRepository.GetProjectsByWorkspaceIdAsync(workspaceId, query, cancellationToken);
+        var projectMemberUserId = access.WorkspaceMember.Role is Role.Member or Role.Guest
+            ? access.CurrentUserId
+            : (int?)null;
+        var projects = await projectRepository.GetProjectsByWorkspaceIdAsync(
+            workspaceId,
+            projectMemberUserId,
+            query,
+            cancellationToken);
         var response = PagedResponse<ProjectListItemResponse>.Create(
             mapper.Map<List<ProjectListItemResponse>>(projects.Items),
             projects.PageNumber,

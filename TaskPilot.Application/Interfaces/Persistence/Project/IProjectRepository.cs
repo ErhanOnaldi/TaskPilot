@@ -14,6 +14,12 @@ public interface IProjectRepository : IGenericRepository<Project>
         ProjectQueryParameters query,
         CancellationToken cancellationToken);
 
+    Task<PagedResponse<Project>> GetProjectsByWorkspaceIdAsync(
+        int workspaceId,
+        int? projectMemberUserId,
+        ProjectQueryParameters query,
+        CancellationToken cancellationToken);
+
     Task<Project?> GetProjectByIdAsync(
         int projectId,
         CancellationToken cancellationToken);

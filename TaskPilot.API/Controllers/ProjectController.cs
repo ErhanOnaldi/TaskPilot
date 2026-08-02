@@ -37,4 +37,13 @@ public class ProjectsController(IProjectService projectService) : CustomBaseCont
         var result = await projectService.ArchiveProjectAsync(projectId, cancellationToken);
         return CreateActionResult(result);
     }
+
+    [HttpDelete("{projectId:int}")]
+    public async Task<IActionResult> ArchiveProjectByDelete(
+        [FromRoute] int projectId,
+        CancellationToken cancellationToken)
+    {
+        var result = await projectService.ArchiveProjectAsync(projectId, cancellationToken);
+        return CreateActionResult(result);
+    }
 }

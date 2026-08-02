@@ -186,6 +186,9 @@ public sealed class AccessControlServiceTests
             return Task.FromResult(PagedResponse<ProjectEntity>.Create(projects, query.PageNumber, query.PageSize, projects.Count));
         }
 
+        public Task<PagedResponse<ProjectEntity>> GetProjectsByWorkspaceIdAsync(int workspaceId, int? projectMemberUserId, ProjectQueryParameters query, CancellationToken cancellationToken)
+            => GetProjectsByWorkspaceIdAsync(workspaceId, query, cancellationToken);
+
         public Task<ProjectEntity?> GetProjectByIdAsync(int projectId, CancellationToken cancellationToken)
             => Task.FromResult(Projects.FirstOrDefault(project => project.Id == projectId));
 

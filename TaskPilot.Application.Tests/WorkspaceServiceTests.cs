@@ -308,6 +308,8 @@ public class WorkspaceServiceTests
         {
             return Task.FromResult(PagedResponse<ProjectEntity>.Create([], query.PageNumber, query.PageSize, 0));
         }
+        public Task<PagedResponse<ProjectEntity>> GetProjectsByWorkspaceIdAsync(int workspaceId, int? projectMemberUserId, ProjectQueryParameters query, CancellationToken cancellationToken)
+            => GetProjectsByWorkspaceIdAsync(workspaceId, query, cancellationToken);
         public Task<ProjectEntity?> GetProjectByIdAsync(int projectId, CancellationToken cancellationToken) => Task.FromResult<ProjectEntity?>(null);
         public Task<ProjectEntity?> GetProjectForUpdateAsync(int projectId, CancellationToken cancellationToken) => Task.FromResult<ProjectEntity?>(null);
         public Task<bool> ExistsByNameInWorkspaceAsync(int workspaceId, string name, CancellationToken cancellationToken) => Task.FromResult(false);

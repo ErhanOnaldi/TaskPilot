@@ -23,6 +23,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasPostgresExtension("pg_trgm");
+        modelBuilder.HasPostgresExtension("vector");
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
         modelBuilder.Entity<User>(entity =>
@@ -131,7 +132,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             entity.ToTable("Comments");
             entity.HasKey(x => x.Id);
-            entity.Property(x => x.Content).IsRequired().HasMaxLength(4000);
+            entity.Property(x => x.Content).IsRequired().HasMaxLength(2000);
             entity.HasOne(x => x.TaskItem)
                 .WithMany(x => x.Comments)
                 .HasForeignKey(x => x.TaskId)
@@ -146,7 +147,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             entity.ToTable("Labels");
             entity.HasKey(x => x.Id);
-            entity.Property(x => x.Name).IsRequired().HasMaxLength(100);
+            entity.Property(x => x.Name).IsRequired().HasMaxLength(50);
             entity.Property(x => x.Color).HasMaxLength(50);
             entity.HasIndex(x => new { x.ProjectId, x.Name }).IsUnique();
             entity.HasOne(x => x.Project)

@@ -1,0 +1,15 @@
+.git
+.gitignore
+.idea
+.vs
+.vscode
+**/bin
+**/obj
+**/TestResults
+**/*.user
+**/*.suo
+**/*.md
+TaskPilot.API/appsettings.Development.json
+TaskPilot.API/appsettings.*.local.json
+docker-compose.override.yml
+.env

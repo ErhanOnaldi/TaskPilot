@@ -11,8 +11,13 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="MassTransit.RabbitMQ" Version="9.1.2" />
+      <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.10" />
+      <PackageReference Include="Microsoft.Agents.AI" Version="1.16.0" />
+      <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.8.3" />
       <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.9" />
+      <PackageReference Include="OllamaSharp" Version="5.4.30" ExcludeAssets="analyzers" />
+      <PackageReference Include="Quartz.Extensions.Hosting" Version="3.18.2" />
+      <PackageReference Include="Quartz.Serialization.SystemTextJson" Version="3.18.2" />
       <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.1" />
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>

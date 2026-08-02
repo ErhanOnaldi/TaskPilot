@@ -20,7 +20,15 @@ public sealed class WorkspaceAccessHandler
             return Task.CompletedTask;
         }
 
-        if (resource.WorkspaceMember.Role == Role.Owner)
+        if (requirement.AccessLevel == WorkspaceAccessLevel.Invite &&
+            resource.WorkspaceMember.Role is Role.Owner or Role.Manager)
+        {
+            context.Succeed(requirement);
+            return Task.CompletedTask;
+        }
+
+        if (requirement.AccessLevel == WorkspaceAccessLevel.Owner &&
+            resource.WorkspaceMember.Role == Role.Owner)
         {
             context.Succeed(requirement);
         }

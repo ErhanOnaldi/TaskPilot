@@ -6,6 +6,7 @@ using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Authorization.Results;
 using TaskPilot.Application.Features.Comments.Services;
 using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
+using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Comments;
 using TaskPilot.Application.Mappings;
@@ -47,7 +48,8 @@ public class CommentServiceTests
             new FakeUnitOfWork(),
             new FakeAccessControlService(),
             CreateMapper(),
-            new FakeEventPublisher());
+            new FakeEventOutbox(),
+            new FakeDateTimeProvider());
     }
 
     private static IMapper CreateMapper()
@@ -100,12 +102,15 @@ public class CommentServiceTests
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
     }
 
-    private sealed class FakeEventPublisher : IEventPublisher
+    private sealed class FakeDateTimeProvider : IDateTimeProvider
     {
-        public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+        public DateTime UtcNow { get; } = new(2026, 8, 2, 12, 0, 0, DateTimeKind.Utc);
+    }
+
+    private sealed class FakeEventOutbox : IEventOutbox
+    {
+        public Task EnqueueAsync(Func<IIntegrationEvent> eventFactory, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeAccessControlService : IAccessControlService

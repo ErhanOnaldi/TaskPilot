@@ -57,6 +57,42 @@ public sealed class TaskRepository : GenericRepository<TaskItem>, ITaskRepositor
         return PagedResponse<TaskItem>.Create(items, query.PageNumber, query.PageSize, totalCount);
     }
 
+    public Task<int> UnassignUserFromProjectAsync(
+        int projectId,
+        int userId,
+        DateTime updatedAtUtc,
+        CancellationToken cancellationToken) =>
+        UnassignAsync(
+            _dbContext.TaskItems.Where(task => task.ProjectId == projectId && task.AssignedUserId == userId),
+            updatedAtUtc,
+            cancellationToken);
+
+    public Task<int> UnassignUserFromWorkspaceAsync(
+        int workspaceId,
+        int userId,
+        DateTime updatedAtUtc,
+        CancellationToken cancellationToken) =>
+        UnassignAsync(
+            _dbContext.TaskItems.Where(task =>
+                task.AssignedUserId == userId && task.Project!.WorkspaceId == workspaceId),
+            updatedAtUtc,
+            cancellationToken);
+
+    private static async Task<int> UnassignAsync(
+        IQueryable<TaskItem> query,
+        DateTime updatedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var tasks = await query.ToListAsync(cancellationToken);
+        foreach (var task in tasks)
+        {
+            task.AssignedUserId = null;
+            task.UpdatedAt = updatedAtUtc;
+        }
+
+        return tasks.Count;
+    }
+
     private static IOrderedQueryable<TaskItem> ApplySorting(IQueryable<TaskItem> query, TaskQueryParameters parameters)
     {
         return (parameters.SortBy, parameters.SortDirection) switch

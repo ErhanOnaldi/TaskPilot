@@ -9,7 +9,6 @@
     <ItemGroup>
       <ProjectReference Include="..\TaskPilot.Application\TaskPilot.Application.csproj" />
       <ProjectReference Include="..\TaskPilot.Domain\TaskPilot.Domain.csproj" />
-      <ProjectReference Include="..\TaskPilot.Infrastructure\TaskPilot.Infrastructure.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -21,6 +20,7 @@
       <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.9" />
       <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.9" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+      <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.3.0" />
     </ItemGroup>
 
 </Project>

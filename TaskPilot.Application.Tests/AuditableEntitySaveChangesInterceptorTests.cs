@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pgvector.EntityFrameworkCore;
 using TaskPilot.Domain.Entities;
 using TaskPilot.Persistence;
 using TaskPilot.Persistence.Interceptors;
@@ -56,7 +57,9 @@ public class AuditableEntitySaveChangesInterceptorTests
     private static AppDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql("Host=localhost;Database=taskpilot_tests;Username=test;Password=test")
+            .UseNpgsql(
+                "Host=localhost;Database=taskpilot_tests;Username=test;Password=test",
+                npgsql => npgsql.UseVector())
             .Options;
 
         return new AppDbContext(options);

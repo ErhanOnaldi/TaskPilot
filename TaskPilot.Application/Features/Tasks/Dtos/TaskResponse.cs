@@ -14,4 +14,5 @@ public sealed record TaskResponse(
     int CreatedByUserId,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    DateTime? CompletedAt);
+    DateTime? CompletedAt,
+    TaskPilot.Application.Features.Semantic.Contracts.DuplicateTaskWarning? DuplicateWarning = null);

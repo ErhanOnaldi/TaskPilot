@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using TaskPilot.Application.Authorization.Enums;
 using TaskPilot.Application.Common.Pagination;
 using TaskPilot.Application.Features.Project.Dtos;
+using TaskPilot.Application.Features.Semantic.Contracts;
 using TaskPilot.Application.Features.Tasks.Dtos;
 using TaskPilot.Application.Features.Tasks.Services;
 using TaskPilot.Application.Features.Workspace.Dtos;
@@ -39,7 +40,14 @@ public class TaskServiceTests
         ]);
 
         var projectRepository = new FakeProjectRepository();
-        projectRepository.Projects.Add(new ProjectEntity { Id = 20, WorkspaceId = 10, Name = "API", Status = ProjectStatus.Active });
+        projectRepository.Projects.Add(new ProjectEntity
+        {
+            Id = 20,
+            WorkspaceId = 10,
+            Name = "API",
+            Status = ProjectStatus.Active,
+            Members = [new ProjectMember { ProjectId = 20, UserId = 2, Role = ProjectRole.TeamMember }]
+        });
         var workspaceRepository = new FakeWorkspaceRepository();
         workspaceRepository.Workspaces.Add(new WorkSpace { Id = 10, Name = "Engineering" });
         var workspaceMemberRepository = new FakeWorkspaceMemberRepository();
@@ -69,16 +77,217 @@ public class TaskServiceTests
         Assert.Equal(3, task.Id);
     }
 
+    [Fact]
+    public async Task UpdateStatusAsync_allows_team_member_to_update_an_assigned_task_through_valid_transition()
+    {
+        var taskRepository = new FakeTaskRepository();
+        var now = new DateTime(2026, 8, 2, 12, 0, 0, DateTimeKind.Utc);
+        taskRepository.Tasks.Add(new TaskItem { Id = 1, ProjectId = 20, Title = "Auth API", Status = TaskItemStatus.Todo, AssignedUserId = 2 });
+        var projectRepository = CreateProjectRepository(new ProjectMember { ProjectId = 20, UserId = 2, Role = ProjectRole.TeamMember });
+        var workspaceRepository = CreateWorkspaceRepository();
+        var service = CreateService(taskRepository, projectRepository, workspaceRepository, new FakeWorkspaceMemberRepository { Members = { new WorkspaceMember { WorkspaceId = 10, UserId = 2, Role = Role.Member } } }, 2);
+
+        var result = await service.UpdateStatusAsync(1, new UpdateTaskStatusRequest(TaskItemStatus.InProgress), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(TaskItemStatus.InProgress, taskRepository.Tasks.Single().Status);
+        Assert.Equal(now, taskRepository.Tasks.Single().UpdatedAt);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_rejects_team_member_updating_another_users_task()
+    {
+        var taskRepository = new FakeTaskRepository();
+        taskRepository.Tasks.Add(new TaskItem { Id = 1, ProjectId = 20, Title = "Auth API", Status = TaskItemStatus.Todo, AssignedUserId = 3 });
+        var projectRepository = CreateProjectRepository(new ProjectMember { ProjectId = 20, UserId = 2, Role = ProjectRole.TeamMember });
+        var workspaceRepository = CreateWorkspaceRepository();
+        var workspaceMembers = new FakeWorkspaceMemberRepository();
+        workspaceMembers.Members.Add(new WorkspaceMember { WorkspaceId = 10, UserId = 2, Role = Role.Member });
+        var service = CreateService(taskRepository, projectRepository, workspaceRepository, workspaceMembers, 2);
+
+        var result = await service.UpdateStatusAsync(1, new UpdateTaskStatusRequest(TaskItemStatus.InProgress), CancellationToken.None);
+
+        Assert.True(result.IsFail);
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, result.Status);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_rejects_team_member_reopening_cancelled_task()
+    {
+        var taskRepository = new FakeTaskRepository();
+        taskRepository.Tasks.Add(new TaskItem { Id = 1, ProjectId = 20, Title = "Auth API", Status = TaskItemStatus.Cancelled, AssignedUserId = 2 });
+        var projectRepository = CreateProjectRepository(new ProjectMember { ProjectId = 20, UserId = 2, Role = ProjectRole.TeamMember });
+        var workspaceRepository = CreateWorkspaceRepository();
+        var workspaceMembers = new FakeWorkspaceMemberRepository();
+        workspaceMembers.Members.Add(new WorkspaceMember { WorkspaceId = 10, UserId = 2, Role = Role.Member });
+        var service = CreateService(taskRepository, projectRepository, workspaceRepository, workspaceMembers, 2);
+
+        var result = await service.UpdateStatusAsync(1, new UpdateTaskStatusRequest(TaskItemStatus.InProgress), CancellationToken.None);
+
+        Assert.True(result.IsFail);
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, result.Status);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_rejects_guest_assignee()
+    {
+        var taskRepository = new FakeTaskRepository();
+        var projectRepository = CreateProjectRepository(
+            new ProjectMember { ProjectId = 20, UserId = 1, Role = ProjectRole.ProjectManager },
+            new ProjectMember { ProjectId = 20, UserId = 2, Role = ProjectRole.Guest });
+        var workspaceRepository = CreateWorkspaceRepository();
+        var workspaceMembers = new FakeWorkspaceMemberRepository();
+        workspaceMembers.Members.Add(new WorkspaceMember { WorkspaceId = 10, UserId = 1, Role = Role.Member });
+        var service = CreateService(taskRepository, projectRepository, workspaceRepository, workspaceMembers, 1);
+
+        var result = await service.CreateTaskAsync(20, new CreateTaskRequest("Auth API", null, null, null, 2), CancellationToken.None);
+
+        Assert.True(result.IsFail);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, result.Status);
+        Assert.Contains(result.ErrorMessages!, message => message.Contains("Guest", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_rejects_team_member_assigning_task_to_another_user()
+    {
+        var taskRepository = new FakeTaskRepository();
+        var projectRepository = CreateProjectRepository(
+            new ProjectMember { ProjectId = 20, UserId = 2, Role = ProjectRole.TeamMember },
+            new ProjectMember { ProjectId = 20, UserId = 3, Role = ProjectRole.TeamMember });
+        var workspaceRepository = CreateWorkspaceRepository();
+        var workspaceMembers = new FakeWorkspaceMemberRepository();
+        workspaceMembers.Members.Add(new WorkspaceMember { WorkspaceId = 10, UserId = 2, Role = Role.Member });
+        workspaceMembers.Members.Add(new WorkspaceMember { WorkspaceId = 10, UserId = 3, Role = Role.Member });
+        var service = CreateService(taskRepository, projectRepository, workspaceRepository, workspaceMembers, 2);
+
+        var result = await service.CreateTaskAsync(
+            20,
+            new CreateTaskRequest("Auth API", null, null, null, 3),
+            CancellationToken.None);
+
+        Assert.True(result.IsFail);
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, result.Status);
+        Assert.Empty(taskRepository.Tasks);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_allows_team_member_assigning_task_to_self()
+    {
+        var taskRepository = new FakeTaskRepository();
+        var projectRepository = CreateProjectRepository(
+            new ProjectMember { ProjectId = 20, UserId = 2, Role = ProjectRole.TeamMember });
+        var workspaceRepository = CreateWorkspaceRepository();
+        var workspaceMembers = new FakeWorkspaceMemberRepository();
+        workspaceMembers.Members.Add(new WorkspaceMember { WorkspaceId = 10, UserId = 2, Role = Role.Member });
+        var service = CreateService(taskRepository, projectRepository, workspaceRepository, workspaceMembers, 2);
+
+        var result = await service.CreateTaskAsync(
+            20,
+            new CreateTaskRequest("Auth API", null, null, null, 2),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, Assert.Single(taskRepository.Tasks).AssignedUserId);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_returns_duplicate_warning_without_blocking_creation()
+    {
+        var taskRepository = new FakeTaskRepository();
+        var projectRepository = CreateProjectRepository(new ProjectMember { ProjectId = 20, UserId = 1, Role = ProjectRole.ProjectManager });
+        var workspaceRepository = CreateWorkspaceRepository();
+        var workspaceMembers = new FakeWorkspaceMemberRepository();
+        workspaceMembers.Members.Add(new WorkspaceMember { WorkspaceId = 10, UserId = 1, Role = Role.Member });
+        var service = CreateService(
+            taskRepository,
+            projectRepository,
+            workspaceRepository,
+            workspaceMembers,
+            1,
+            new DuplicateDetector(new DuplicateTaskWarning([new SimilarTaskMatch(71, "Repair sign-in flow", .91f)])));
+
+        var result = await service.CreateTaskAsync(20, new CreateTaskRequest("Fix login failure", null, null, null, null), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(System.Net.HttpStatusCode.Created, result.Status);
+        Assert.Single(taskRepository.Tasks);
+        var match = Assert.Single(result.Data!.DuplicateWarning!.Matches);
+        Assert.Equal(71, match.TaskId);
+        Assert.Equal(.91f, match.Similarity);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_persists_task_when_duplicate_detector_fails()
+    {
+        var taskRepository = new FakeTaskRepository();
+        var projectRepository = CreateProjectRepository(new ProjectMember { ProjectId = 20, UserId = 1, Role = ProjectRole.ProjectManager });
+        var workspaceRepository = CreateWorkspaceRepository();
+        var workspaceMembers = new FakeWorkspaceMemberRepository();
+        workspaceMembers.Members.Add(new WorkspaceMember { WorkspaceId = 10, UserId = 1, Role = Role.Member });
+        var service = CreateService(taskRepository, projectRepository, workspaceRepository, workspaceMembers, 1, new FailingDuplicateDetector());
+
+        var result = await service.CreateTaskAsync(20, new CreateTaskRequest("Fix login failure", null, null, null, null), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(taskRepository.Tasks);
+        Assert.Null(result.Data!.DuplicateWarning);
+    }
+
+    [Fact]
+    public async Task UpdateTaskAsync_rejects_team_member_editing_task_details()
+    {
+        var taskRepository = new FakeTaskRepository();
+        taskRepository.Tasks.Add(new TaskItem
+        {
+            Id = 1,
+            ProjectId = 20,
+            Title = "Original",
+            Status = TaskItemStatus.Todo,
+            AssignedUserId = 2
+        });
+        var projectRepository = CreateProjectRepository(
+            new ProjectMember { ProjectId = 20, UserId = 2, Role = ProjectRole.TeamMember });
+        var workspaceRepository = CreateWorkspaceRepository();
+        var workspaceMembers = new FakeWorkspaceMemberRepository();
+        workspaceMembers.Members.Add(new WorkspaceMember { WorkspaceId = 10, UserId = 2, Role = Role.Member });
+        var service = CreateService(taskRepository, projectRepository, workspaceRepository, workspaceMembers, 2);
+
+        var result = await service.UpdateTaskAsync(
+            1,
+            new UpdateTaskRequest("Changed", null, null, TaskItemPriority.High, 2),
+            CancellationToken.None);
+
+        Assert.True(result.IsFail);
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, result.Status);
+        Assert.Equal("Original", taskRepository.Tasks.Single().Title);
+    }
+
+    private static FakeProjectRepository CreateProjectRepository(params ProjectMember[] members)
+    {
+        var repository = new FakeProjectRepository();
+        repository.Projects.Add(new ProjectEntity { Id = 20, WorkspaceId = 10, Name = "API", Status = ProjectStatus.Active, Members = members.ToList() });
+        return repository;
+    }
+
+    private static FakeWorkspaceRepository CreateWorkspaceRepository()
+    {
+        var repository = new FakeWorkspaceRepository();
+        repository.Workspaces.Add(new WorkSpace { Id = 10, Name = "Engineering" });
+        return repository;
+    }
+
     private static TaskService CreateService(
         FakeTaskRepository taskRepository,
         FakeProjectRepository projectRepository,
         FakeWorkspaceRepository workspaceRepository,
         FakeWorkspaceMemberRepository workspaceMemberRepository,
-        int currentUserId)
+        int currentUserId,
+        ITaskDuplicateDetector? duplicateDetector = null)
     {
         return new TaskService(
             taskRepository,
             new FakeProjectMemberRepository(projectRepository),
+            workspaceMemberRepository,
             new FakeUnitOfWork(),
             new AccessControlService(
                 CreateAuthorizationService(),
@@ -89,7 +298,9 @@ public class TaskServiceTests
                 projectRepository,
                 new FakeProjectMemberRepository(projectRepository)),
             CreateMapper(),
-            new FakeEventPublisher());
+            new FakeEventOutbox(),
+            new FakeDateTimeProvider(),
+            duplicateDetector);
     }
 
     private static IAuthorizationService CreateAuthorizationService()
@@ -130,17 +341,30 @@ public class TaskServiceTests
         public int GetRequiredUserId() => userId;
     }
 
+    private sealed class FakeDateTimeProvider : IDateTimeProvider
+    {
+        public DateTime UtcNow { get; } = new(2026, 8, 2, 12, 0, 0, DateTimeKind.Utc);
+    }
+
+    private sealed class DuplicateDetector(DuplicateTaskWarning? warning) : ITaskDuplicateDetector
+    {
+        public Task<DuplicateTaskWarning?> DetectAsync(int projectId, int taskId, string content, CancellationToken cancellationToken) => Task.FromResult(warning);
+    }
+
+    private sealed class FailingDuplicateDetector : ITaskDuplicateDetector
+    {
+        public Task<DuplicateTaskWarning?> DetectAsync(int projectId, int taskId, string content, CancellationToken cancellationToken) => throw new InvalidOperationException("Embedding provider is unavailable.");
+    }
+
     private sealed class FakeUnitOfWork : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
     }
 
-    private sealed class FakeEventPublisher : IEventPublisher
+    private sealed class FakeEventOutbox : IEventOutbox
     {
-        public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+        public Task EnqueueAsync(Func<IIntegrationEvent> eventFactory, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeTaskRepository : ITaskRepository
@@ -198,6 +422,9 @@ public class TaskServiceTests
             var projects = Projects.Where(project => project.WorkspaceId == workspaceId).ToList();
             return Task.FromResult(PagedResponse<ProjectEntity>.Create(projects, query.PageNumber, query.PageSize, projects.Count));
         }
+
+        public Task<PagedResponse<ProjectEntity>> GetProjectsByWorkspaceIdAsync(int workspaceId, int? projectMemberUserId, ProjectQueryParameters query, CancellationToken cancellationToken)
+            => GetProjectsByWorkspaceIdAsync(workspaceId, query, cancellationToken);
 
         public Task<ProjectEntity?> GetProjectByIdAsync(int projectId, CancellationToken cancellationToken)
             => Task.FromResult(Projects.FirstOrDefault(project => project.Id == projectId));

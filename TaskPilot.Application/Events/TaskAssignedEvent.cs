@@ -1,3 +1,5 @@
+using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
+
 namespace TaskPilot.Application.Events;
 
 public sealed record TaskAssignedEvent(
@@ -6,5 +8,10 @@ public sealed record TaskAssignedEvent(
     int ProjectId,
     int AssignedUserId,
     int AssignedByUserId,
-    DateTime OccurredAt
-);
+    DateTime OccurredAt) : IIntegrationEvent
+{
+    public Guid CorrelationId { get; init; } = EventId;
+    public Guid? CausationId { get; init; }
+    public string EventType => "task.assigned";
+    public int SchemaVersion => 1;
+}

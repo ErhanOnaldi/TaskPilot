@@ -7,14 +7,14 @@ namespace TaskPilot.Application.Tests;
 public class WorkspaceMemberValidatorTests
 {
     [Fact]
-    public void AddWorkspaceMemberRequestValidator_rejects_invalid_user_id()
+    public void AddWorkspaceMemberRequestValidator_rejects_invalid_email()
     {
         var validator = new AddWorkspaceMemberRequestValidator();
 
-        var result = validator.Validate(new AddWorkspaceMemberRequest(0, Role.Member));
+        var result = validator.Validate(new AddWorkspaceMemberRequest("not-an-email", Role.Member));
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, error => error.PropertyName == nameof(AddWorkspaceMemberRequest.UserId));
+        Assert.Contains(result.Errors, error => error.PropertyName == nameof(AddWorkspaceMemberRequest.Email));
     }
 
     [Fact]
@@ -22,7 +22,7 @@ public class WorkspaceMemberValidatorTests
     {
         var validator = new AddWorkspaceMemberRequestValidator();
 
-        var result = validator.Validate(new AddWorkspaceMemberRequest(5, (Role)999));
+        var result = validator.Validate(new AddWorkspaceMemberRequest("member@example.com", (Role)999));
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, error => error.PropertyName == nameof(AddWorkspaceMemberRequest.Role));
@@ -33,7 +33,7 @@ public class WorkspaceMemberValidatorTests
     {
         var validator = new AddWorkspaceMemberRequestValidator();
 
-        var result = validator.Validate(new AddWorkspaceMemberRequest(5, Role.Member));
+        var result = validator.Validate(new AddWorkspaceMemberRequest("member@example.com", Role.Member));
 
         Assert.True(result.IsValid);
     }

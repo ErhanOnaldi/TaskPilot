@@ -39,18 +39,18 @@ public sealed class AccessControlService(
                 currentUserId);
         }
 
-        if (requireActiveWorkspace && workspace.IsArchived)
-        {
-            return WorkspaceAccessResult.Fail(
-                ServiceResult.Fail("Workspace is archived.", HttpStatusCode.BadRequest),
-                currentUserId);
-        }
-
         var workspaceMember = await workspaceMemberRepository.GetMemberAsync(workspaceId, currentUserId, cancellationToken);
         if (workspaceMember is null)
         {
             return WorkspaceAccessResult.Fail(
                 ServiceResult.Fail("Workspace not found.", HttpStatusCode.NotFound),
+                currentUserId);
+        }
+
+        if (requireActiveWorkspace && workspace.IsArchived)
+        {
+            return WorkspaceAccessResult.Fail(
+                ServiceResult.Fail("Workspace is archived.", HttpStatusCode.BadRequest),
                 currentUserId);
         }
 
@@ -84,13 +84,6 @@ public sealed class AccessControlService(
                 currentUserId);
         }
 
-        if (requireActiveProject && project.Status == ProjectStatus.Archived)
-        {
-            return ProjectAccessResult.Fail(
-                ServiceResult.Fail("Project is archived.", HttpStatusCode.BadRequest),
-                currentUserId);
-        }
-
         var workspace = await workspaceRepository.GetByIdAsync(project.WorkspaceId);
         if (workspace is null)
         {
@@ -99,18 +92,25 @@ public sealed class AccessControlService(
                 currentUserId);
         }
 
-        if (workspace.IsArchived)
-        {
-            return ProjectAccessResult.Fail(
-                ServiceResult.Fail("Workspace is archived.", HttpStatusCode.BadRequest),
-                currentUserId);
-        }
-
         var workspaceMember = await workspaceMemberRepository.GetMemberAsync(project.WorkspaceId, currentUserId, cancellationToken);
         if (workspaceMember is null)
         {
             return ProjectAccessResult.Fail(
                 ServiceResult.Fail("Project not found.", HttpStatusCode.NotFound),
+                currentUserId);
+        }
+
+        if (requireActiveProject && project.Status == ProjectStatus.Archived)
+        {
+            return ProjectAccessResult.Fail(
+                ServiceResult.Fail("Project is archived.", HttpStatusCode.BadRequest),
+                currentUserId);
+        }
+
+        if (workspace.IsArchived)
+        {
+            return ProjectAccessResult.Fail(
+                ServiceResult.Fail("Workspace is archived.", HttpStatusCode.BadRequest),
                 currentUserId);
         }
 
@@ -127,7 +127,7 @@ public sealed class AccessControlService(
                 currentUserId);
         }
 
-        return new ProjectAccessResult(project, workspace, workspaceMember, currentUserId, null);
+        return new ProjectAccessResult(project, workspace, workspaceMember, currentUserId, null, projectMember);
     }
 
     private static string GetProjectForbiddenMessage(ProjectAccessLevel accessLevel)

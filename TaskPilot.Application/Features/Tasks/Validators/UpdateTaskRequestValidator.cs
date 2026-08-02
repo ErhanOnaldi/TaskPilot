@@ -1,11 +1,12 @@
 using FluentValidation;
 using TaskPilot.Application.Features.Tasks.Dtos;
+using TaskPilot.Application.Interfaces.Infrastructure;
 
 namespace TaskPilot.Application.Features.Tasks.Validators;
 
 public sealed class UpdateTaskRequestValidator : AbstractValidator<UpdateTaskRequest>
 {
-    public UpdateTaskRequestValidator()
+    public UpdateTaskRequestValidator(IDateTimeProvider dateTimeProvider)
     {
         RuleFor(x => x.Title)
             .Cascade(CascadeMode.Stop)
@@ -17,7 +18,7 @@ public sealed class UpdateTaskRequestValidator : AbstractValidator<UpdateTaskReq
             .IsInEnum().WithMessage("Task priority is invalid.");
 
         RuleFor(x => x.DueDate)
-            .Must(dueDate => dueDate is null || dueDate.Value.Date >= DateTime.UtcNow.Date)
+            .Must(dueDate => dueDate is null || dueDate.Value.Date >= dateTimeProvider.UtcNow.Date)
             .WithMessage("DueDate cannot be in the past.");
     }
 }

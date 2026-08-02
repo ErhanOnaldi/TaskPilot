@@ -31,6 +31,33 @@ public sealed class DashboardRepository(AppDbContext dbContext) : IDashboardRepo
             cancellationToken);
         var assignedTasks = await taskQuery.CountAsync(task => task.AssignedUserId.HasValue, cancellationToken);
         var unassignedTasks = totalTasks - assignedTasks;
+        var completionRate = ProjectDashboardResponse.CalculateCompletionRate(doneTasks, totalTasks, cancelledTasks);
+        var recentComments = await dbContext.Comments
+            .AsNoTracking()
+            .Where(comment => dbContext.TaskItems.Any(task => task.Id == comment.TaskId && task.ProjectId == projectId))
+            .OrderByDescending(comment => comment.CreatedAt)
+            .ThenByDescending(comment => comment.Id)
+            .Take(5)
+            .Select(comment => new DashboardCommentResponse(
+                comment.Id,
+                comment.TaskId,
+                comment.UserId,
+                comment.Content,
+                comment.CreatedAt))
+            .ToListAsync(cancellationToken);
+        var highestPriorityOpenTasks = await taskQuery
+            .Where(task => task.Status != TaskItemStatus.Done && task.Status != TaskItemStatus.Cancelled)
+            .OrderByDescending(task => task.Priority)
+            .ThenBy(task => task.DueDate == null)
+            .ThenBy(task => task.DueDate)
+            .ThenBy(task => task.Id)
+            .Take(5)
+            .Select(task => new DashboardTaskResponse(
+                task.Id,
+                task.Title,
+                task.Priority,
+                task.DueDate))
+            .ToListAsync(cancellationToken);
 
         return new ProjectDashboardResponse(
             projectId,
@@ -42,6 +69,9 @@ public sealed class DashboardRepository(AppDbContext dbContext) : IDashboardRepo
             cancelledTasks,
             overdueTasks,
             assignedTasks,
-            unassignedTasks);
+            unassignedTasks,
+            completionRate,
+            recentComments,
+            highestPriorityOpenTasks);
     }
 }

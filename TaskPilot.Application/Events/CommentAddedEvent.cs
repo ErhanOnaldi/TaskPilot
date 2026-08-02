@@ -1,3 +1,5 @@
+using TaskPilot.Application.Interfaces.Infrastructure.Messaging;
+
 namespace TaskPilot.Application.Events;
 
 public sealed record CommentAddedEvent(
@@ -6,5 +8,10 @@ public sealed record CommentAddedEvent(
     int TaskId,
     int ProjectId,
     int AuthorUserId,
-    DateTime OccurredAt
-);
+    DateTime OccurredAt) : IIntegrationEvent
+{
+    public Guid CorrelationId { get; init; } = EventId;
+    public Guid? CausationId { get; init; }
+    public string EventType => "comment.added";
+    public int SchemaVersion => 1;
+}

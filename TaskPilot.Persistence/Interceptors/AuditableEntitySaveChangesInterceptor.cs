@@ -1,17 +1,18 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Domain.Entities;
 
 namespace TaskPilot.Persistence.Interceptors;
 
-public sealed class AuditableEntitySaveChangesInterceptor : SaveChangesInterceptor
+public sealed class AuditableEntitySaveChangesInterceptor(IDateTimeProvider dateTimeProvider) : SaveChangesInterceptor
 {
     public override InterceptionResult<int> SavingChanges(
         DbContextEventData eventData,
         InterceptionResult<int> result)
     {
-        ApplyAudit(eventData.Context?.ChangeTracker, DateTime.UtcNow);
+        ApplyAudit(eventData.Context?.ChangeTracker, dateTimeProvider.UtcNow);
         return base.SavingChanges(eventData, result);
     }
 
@@ -20,7 +21,7 @@ public sealed class AuditableEntitySaveChangesInterceptor : SaveChangesIntercept
         InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        ApplyAudit(eventData.Context?.ChangeTracker, DateTime.UtcNow);
+        ApplyAudit(eventData.Context?.ChangeTracker, dateTimeProvider.UtcNow);
         return base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 

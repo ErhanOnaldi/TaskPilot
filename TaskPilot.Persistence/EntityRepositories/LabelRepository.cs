@@ -28,4 +28,17 @@ public sealed class LabelRepository : GenericRepository<Label>, ILabelRepository
             .AsNoTracking()
             .AnyAsync(label => label.ProjectId == projectId && label.Name == name, cancellationToken);
     }
+
+    public Task<bool> ExistsByNameInProjectExceptLabelAsync(
+        int projectId,
+        int labelId,
+        string name,
+        CancellationToken cancellationToken)
+    {
+        return _dbContext.Labels
+            .AsNoTracking()
+            .AnyAsync(
+                label => label.ProjectId == projectId && label.Id != labelId && label.Name == name,
+                cancellationToken);
+    }
 }

@@ -2,6 +2,7 @@ using TaskPilot.Application.Events;
 using TaskPilot.Application.Interfaces.Persistence;
 using TaskPilot.Application.Interfaces.Persistence.Notifications;
 using TaskPilot.Application.Interfaces.Persistence.Tasks;
+using TaskPilot.Application.Interfaces.Infrastructure;
 using TaskPilot.Domain.Entities;
 
 namespace TaskPilot.Application.Features.Notifications.Services;
@@ -9,7 +10,8 @@ namespace TaskPilot.Application.Features.Notifications.Services;
 public sealed class NotificationEventHandler(
     INotificationRepository notificationRepository,
     ITaskRepository taskRepository,
-    IUnitOfWork unitOfWork) : INotificationEventHandler
+    IUnitOfWork unitOfWork,
+    IDateTimeProvider clock) : INotificationEventHandler
 {
     public Task HandleAsync(TaskCreatedEvent taskCreatedEvent, CancellationToken cancellationToken)
     {
@@ -43,6 +45,18 @@ public sealed class NotificationEventHandler(
             title: "Task assigned",
             message: "A task was assigned to you.",
             relatedEntityId: taskAssignedEvent.TaskId,
+            cancellationToken);
+    }
+
+    public Task HandleAsync(WorkspaceMemberInvitedEvent workspaceMemberInvitedEvent, CancellationToken cancellationToken)
+    {
+        return CreateNotificationIfNotExistsAsync(
+            userId: workspaceMemberInvitedEvent.InvitedUserId,
+            sourceEventId: workspaceMemberInvitedEvent.EventId,
+            type: "WorkspaceMemberInvited",
+            title: "Workspace invitation",
+            message: "You were added to a workspace.",
+            relatedEntityId: workspaceMemberInvitedEvent.WorkspaceId,
             cancellationToken);
     }
 
@@ -87,7 +101,7 @@ public sealed class NotificationEventHandler(
             return;
         }
 
-        var now = DateTime.UtcNow;
+        var now = clock.UtcNow;
         await notificationRepository.AddAsync(new Notification
         {
             UserId = userId,
