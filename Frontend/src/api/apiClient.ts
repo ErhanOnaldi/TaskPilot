@@ -75,6 +75,19 @@ export function subscribeSession(listener: () => void) {
   };
 }
 
+export async function checkApiHealth(signal?: AbortSignal): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/health/ready`, {
+      headers: { Accept: 'text/plain' },
+      ...(signal ? { signal } : {}),
+    });
+    if (!response.ok) return false;
+    return (await response.text()).trim().toLowerCase() === 'healthy';
+  } catch {
+    return false;
+  }
+}
+
 async function refreshSession(): Promise<boolean> {
   if (!refreshToken) return false;
   if (refreshInFlight) return refreshInFlight;

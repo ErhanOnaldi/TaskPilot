@@ -15,9 +15,10 @@ import { SettingsPage } from '../features/settings/SettingsPage';
 import { MyTasksPage } from '../features/tasks/MyTasksPage';
 import { isDemoMode } from '../api/dataSource';
 import { OnboardingPage } from '../features/onboarding/OnboardingPage';
+import { LandingPage } from '../features/landing/LandingPage';
 
 export const router = createBrowserRouter([
-  { path: '/', element: <Navigate replace to={isDemoMode ? '/w/1' : '/login'} /> },
+  { path: '/', element: <LandingPage /> },
   { path: '/login', element: <AuthPage /> },
   { path: '/register', element: <AuthPage /> },
   { path: '/onboarding', element: <OnboardingPage /> },
