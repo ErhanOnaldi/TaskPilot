@@ -34,10 +34,18 @@ public static class InfrastructureExtensions
         services.AddScoped<TaskPilot.Application.Interfaces.Infrastructure.Auditing.IAuditContextAccessor, AuditContextAccessor>();
         services.AddScoped<IAuthorizationHandler, WorkspaceAccessHandler>();
         services.AddScoped<IAuthorizationHandler, ProjectAccessHandler>();
-        services.AddStackExchangeRedisCache(options =>
+        var cacheProvider = configuration["Caching:Provider"] ?? "Redis";
+        if (string.Equals(cacheProvider, "Memory", StringComparison.OrdinalIgnoreCase))
         {
-            options.Configuration = configuration.GetConnectionString("Redis");
-        });
+            services.AddDistributedMemoryCache();
+        }
+        else
+        {
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = configuration.GetConnectionString("Redis");
+            });
+        }
         services.AddSingleton<ICacheService, RedisCacheService>();
         services.AddScoped<IDashboardCacheInvalidator, DashboardCacheInvalidator>();
         services.Configure<RabbitMqOptions>(
@@ -46,11 +54,36 @@ public static class InfrastructureExtensions
         services.AddScoped<IIntegrationEventPublisher, MassTransitIntegrationEventPublisher>();
         services.AddScoped<OutboxDispatcher>();
         services.AddHostedService<OutboxDispatcherWorker>();
+        var messagingTransport = configuration["Messaging:Transport"] ?? "RabbitMq";
         services.AddMassTransit(busRegistrationConfigurator =>
         {
             busRegistrationConfigurator.AddConsumer<NotificationConsumer>();
             busRegistrationConfigurator.AddConsumer<IntegrationEventConsumer>();
             busRegistrationConfigurator.SetKebabCaseEndpointNameFormatter();
+            if (string.Equals(messagingTransport, "InMemory", StringComparison.OrdinalIgnoreCase))
+            {
+                busRegistrationConfigurator.UsingInMemory((context, inMemoryBusFactoryConfigurator) =>
+                {
+                    inMemoryBusFactoryConfigurator.ReceiveEndpoint("taskpilot.integration-events", endpointConfigurator =>
+                    {
+                        endpointConfigurator.ConcurrentMessageLimit = 5;
+                        endpointConfigurator.UseMessageRetry(retryConfigurator =>
+                            retryConfigurator.Interval(3, TimeSpan.FromSeconds(5)));
+                        endpointConfigurator.UseConsumeFilter(typeof(InboxIdempotencyFilter<>), context);
+                        endpointConfigurator.ConfigureConsumer<IntegrationEventConsumer>(context);
+                    });
+
+                    inMemoryBusFactoryConfigurator.ReceiveEndpoint("taskpilot.notifications", endpointConfigurator =>
+                    {
+                        endpointConfigurator.ConcurrentMessageLimit = 5;
+                        endpointConfigurator.UseMessageRetry(retryConfigurator =>
+                            retryConfigurator.Interval(3, TimeSpan.FromSeconds(5)));
+                        endpointConfigurator.ConfigureConsumer<NotificationConsumer>(context);
+                    });
+                });
+                return;
+            }
+
             busRegistrationConfigurator.UsingRabbitMq((context, rabbitMqBusFactoryConfigurator) =>
             {
                 var rabbitMqOptions = configuration.GetSection("RabbitMq").Get<RabbitMqOptions>() ?? new RabbitMqOptions();

@@ -1,0 +1,67 @@
+services:
+  - type: web
+    name: taskpilot-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    autoDeployTrigger: commit
+    healthCheckPath: /health/ready
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:10000
+      - key: ConnectionStrings__PostgreSql
+        fromDatabase:
+          name: taskpilot-db
+          property: connectionString
+      - key: Persistence__ApplyMigrationsOnStartup
+        value: "true"
+      - key: Caching__Provider
+        value: Memory
+      - key: Messaging__Transport
+        value: InMemory
+      - key: Jwt__Issuer
+        value: TaskPilot
+      - key: Jwt__Audience
+        value: TaskPilot.Web
+      - key: Jwt__Secret
+        generateValue: true
+      - key: Jwt__AccessTokenExpirationMinutes
+        value: "15"
+      - key: Jwt__RefreshTokenExpirationDays
+        value: "7"
+      - key: Cors__AllowedOrigins
+        value: https://taskpilot-web.pages.dev
+      - key: HttpsRedirection__Enabled
+        value: "false"
+      - key: Observability__OtlpEndpoint
+        value: ""
+      - key: Features__Interop__McpEnabled
+        value: "false"
+      - key: Features__Interop__A2aEnabled
+        value: "false"
+      - key: Ai__Provider
+        value: OpenAICompatible
+      - key: Ai__Endpoint
+        value: https://api.cloudflare.com/client/v4/accounts/485e07cfa134b36e9171c3f6210db67e/ai/v1
+      - key: Ai__Model
+        value: "@cf/openai/gpt-oss-20b"
+      - key: Ai__ApiKey
+        sync: false
+      - key: Semantic__Provider
+        value: OpenAICompatible
+      - key: Semantic__Model
+        value: "@cf/baai/bge-base-en-v1.5"
+      - key: Semantic__BackfillEnabled
+        value: "false"
+
+databases:
+  - name: taskpilot-db
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"
+    databaseName: taskpilot
+    user: taskpilot
+    ipAllowList: []

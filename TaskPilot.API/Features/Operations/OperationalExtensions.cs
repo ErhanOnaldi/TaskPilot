@@ -10,6 +10,7 @@ using Serilog;
 using Serilog.Formatting.Json;
 using Serilog.Sinks.OpenTelemetry;
 using Npgsql;
+using TaskPilot.Persistence;
 
 namespace TaskPilot.API.Features.Operations;
 
@@ -70,18 +71,24 @@ public static class OperationalExtensions
             failureStatus: HealthStatus.Unhealthy,
             tags: ["ready"],
             timeout: GetTimeout(configuration, "PostgreSqlTimeoutSeconds")));
-        readinessChecks.Add(new HealthCheckRegistration(
-            "redis",
-            CreateRedisCheck(configuration),
-            failureStatus: HealthStatus.Unhealthy,
-            tags: ["ready"],
-            timeout: GetTimeout(configuration, "RedisTimeoutSeconds")));
-        readinessChecks.Add(new HealthCheckRegistration(
-            "rabbitmq",
-            CreateRabbitMqCheck(configuration),
-            failureStatus: HealthStatus.Unhealthy,
-            tags: ["ready"],
-            timeout: GetTimeout(configuration, "RabbitMqTimeoutSeconds")));
+        if (!string.Equals(configuration["Caching:Provider"], "Memory", StringComparison.OrdinalIgnoreCase))
+        {
+            readinessChecks.Add(new HealthCheckRegistration(
+                "redis",
+                CreateRedisCheck(configuration),
+                failureStatus: HealthStatus.Unhealthy,
+                tags: ["ready"],
+                timeout: GetTimeout(configuration, "RedisTimeoutSeconds")));
+        }
+        if (!string.Equals(configuration["Messaging:Transport"], "InMemory", StringComparison.OrdinalIgnoreCase))
+        {
+            readinessChecks.Add(new HealthCheckRegistration(
+                "rabbitmq",
+                CreateRabbitMqCheck(configuration),
+                failureStatus: HealthStatus.Unhealthy,
+                tags: ["ready"],
+                timeout: GetTimeout(configuration, "RabbitMqTimeoutSeconds")));
+        }
 
         return services;
     }
@@ -108,7 +115,10 @@ public static class OperationalExtensions
             return new UnconfiguredHealthCheck("PostgreSql connection string is missing.");
         }
 
-        var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+        var builder = new DbConnectionStringBuilder
+        {
+            ConnectionString = PostgreSqlConnectionString.Normalize(connectionString)
+        };
         return TcpEndpointHealthCheck.FromHostAndPort(
             builder.TryGetValue("Host", out var host) ? host?.ToString() : null,
             builder.TryGetValue("Port", out var port) && int.TryParse(port?.ToString(), out var parsedPort)

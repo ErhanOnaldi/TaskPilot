@@ -38,6 +38,18 @@ using A2A.AspNetCore;
 using Microsoft.Agents.AI.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
+var postgreSqlConnectionString = builder.Configuration.GetConnectionString("PostgreSql");
+if (!string.IsNullOrWhiteSpace(postgreSqlConnectionString))
+{
+    builder.Configuration["ConnectionStrings:PostgreSql"] =
+        TaskPilot.Persistence.PostgreSqlConnectionString.Normalize(postgreSqlConnectionString);
+}
+
+const string frontendCorsPolicy = "Frontend";
+var allowedOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? string.Empty)
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
 
 builder.Services.AddScoped<FluentValidationActionFilter>();
 builder.Services.AddControllers(options =>
@@ -47,6 +59,20 @@ builder.Services.AddControllers(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerExtension();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(frontendCorsPolicy, policy =>
+    {
+        if (allowedOrigins.Length > 0)
+        {
+            policy
+                .WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .WithExposedHeaders(CorrelationIdMiddleware.HeaderName, "Retry-After");
+        }
+    });
+});
 builder.Services.AddPersistence(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
@@ -69,7 +95,7 @@ builder.Services.AddInteropApi();
 builder.Services.AddReportApplication();
 builder.Services.AddReportPersistence();
 builder.Services.AddReportInfrastructure(builder.Configuration);
-builder.Services.AddConnectionCriticalOptionsValidation();
+builder.Services.AddConnectionCriticalOptionsValidation(builder.Configuration);
 builder.Services.AddTaskPilotRateLimiting();
 builder.Services.AddTaskPilotOperations(builder.Configuration);
 
@@ -119,6 +145,7 @@ if (builder.Configuration.GetValue("HttpsRedirection:Enabled", true))
 {
     app.UseHttpsRedirection();
 }
+app.UseCors(frontendCorsPolicy);
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();

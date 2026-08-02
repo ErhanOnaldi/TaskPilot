@@ -27,11 +27,13 @@ public static class PersistenceExtensions
     public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<AuditableEntitySaveChangesInterceptor>();
+        var connectionString = PostgreSqlConnectionString.Normalize(
+            configuration.GetConnectionString("PostgreSql"));
 
         services.AddDbContext<AppDbContext>((serviceProvider, options) =>
         {
             options.UseNpgsql(
-                configuration.GetConnectionString("PostgreSql"),
+                connectionString,
                 npgsqlOptions =>
                 {
                     npgsqlOptions.UseVector();

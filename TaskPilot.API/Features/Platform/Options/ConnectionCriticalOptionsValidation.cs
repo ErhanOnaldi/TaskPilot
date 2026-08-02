@@ -11,12 +11,15 @@ namespace TaskPilot.API.Features.Platform.Options;
 /// </summary>
 public static class ConnectionCriticalOptionsValidation
 {
-    public static IServiceCollection AddConnectionCriticalOptionsValidation(this IServiceCollection services)
+    public static IServiceCollection AddConnectionCriticalOptionsValidation(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
-        services.AddSingleton<IValidateOptions<RabbitMqOptions>, RabbitMqOptionsValidator>();
         services.AddOptions<JwtOptions>().ValidateOnStart();
-        services.AddOptions<RabbitMqOptions>().ValidateOnStart();
+        if (!string.Equals(configuration["Messaging:Transport"], "InMemory", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<IValidateOptions<RabbitMqOptions>, RabbitMqOptionsValidator>();
+            services.AddOptions<RabbitMqOptions>().ValidateOnStart();
+        }
 
         return services;
     }
