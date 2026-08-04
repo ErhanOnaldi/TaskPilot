@@ -12,11 +12,9 @@ import {
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppContext } from '../../app/AppProviders';
-import { checkApiHealth } from '../../api/apiClient';
 import './landing.css';
 
 type SurfaceId = 'tasks' | 'notes' | 'ai';
-type ApiStatus = 'checking' | 'online' | 'waking';
 
 const surfaces: Record<SurfaceId, { label: string; title: string; body: string; bullets: string[] }> = {
   tasks: {
@@ -75,14 +73,7 @@ const roles = [
 const faqs = [
   { question: 'TaskPilot bugün hangi verileri birlikte tutuyor?', answer: 'Projeler, görevler, bağlantılı notlar, bilgi grafiği, bildirimler, AI önerileri ve kaynaklı Copilot konuşmaları aynı çalışma alanı bağlamında tutulur.' },
   { question: 'Copilot cevaplarını neye dayandırıyor?', answer: 'Copilot ilgili proje veya çalışma alanındaki görev ve notları semantik olarak arar. Yanıtta kullanılan kaynaklar görev ve not referansları olarak kullanıcıya gösterilir.' },
-  { question: 'Veriler gerçek backend üzerinde mi saklanıyor?', answer: 'Evet. Kayıt, giriş, çalışma alanı, proje, görev ve bilgi akışları Render üzerindeki TaskPilot API ile PostgreSQL veritabanına bağlıdır.' },
   { question: 'Konuk kullanıcılar ne yapabilir?', answer: 'Guest rolü okuma odaklıdır. Yönetim, atama ve düzenleme aksiyonları arayüzde gösterilmez; backend de aynı izinleri ayrıca doğrular.' },
-];
-
-const plans = [
-  { name: 'Başlangıç', monthly: '0₺', yearly: '0₺', unit: 'ücretsiz beta', description: 'Bireysel kullanım ve küçük ekiplerin TaskPilot’u denemesi için.', items: ['Sınırsız görev akışı', 'Bağlantılı notlar ve bilgi grafiği', 'Kaynaklı Copilot deneyimi', 'Rol tabanlı çalışma alanı'], featured: false, cta: 'Hesap oluştur' },
-  { name: 'Takım', monthly: '149₺', yearly: '119₺', unit: '/kişi/ay', description: 'Sprint yürüten ve karar kaydı tutan ekipler için planlanan paket.', items: ['Sınırsız proje ve not', 'Gelişmiş Copilot akışları', 'Haftalık AI raporları', 'Ekip rolleri ve konuk erişimi'], featured: true, cta: 'Beta erişimi al' },
-  { name: 'Kurumsal', monthly: 'Özel', yearly: 'Özel', unit: 'yakında', description: 'Denetim ve kurumsal kimlik ihtiyaçları için yol haritası.', items: ['Kurumsal erişim politikaları', 'Gelişmiş denetim ihtiyaçları', 'Özel dağıtım seçenekleri', 'Öncelikli destek'], featured: false, cta: 'Erken erişime katıl' },
 ];
 
 function ProductPreview({ surface }: { surface: SurfaceId }) {
@@ -107,32 +98,40 @@ function HeroProduct() {
   </div>;
 }
 
+/** Fades sections in as they enter the viewport instead of snapping them into place. */
+function useRevealOnScroll() {
+  useEffect(() => {
+    const targets = Array.from(document.querySelectorAll<HTMLElement>('.landing-page [data-reveal]'));
+    const reveal = (target: HTMLElement) => { target.dataset.reveal = 'in'; };
+    if (!('IntersectionObserver' in window)) {
+      targets.forEach(reveal);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        reveal(entry.target as HTMLElement);
+        observer.unobserve(entry.target);
+      });
+    }, { rootMargin: '0px 0px -10% 0px', threshold: 0.06 });
+    targets.forEach((target) => observer.observe(target));
+    return () => observer.disconnect();
+  }, []);
+}
+
 export function LandingPage() {
   const { theme, toggleTheme } = useAppContext();
+  useRevealOnScroll();
   const [surface, setSurface] = useState<SurfaceId>('tasks');
-  const [yearly, setYearly] = useState(false);
   const [openFaq, setOpenFaq] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
-    const timeout = window.setTimeout(() => controller.abort(), 12_000);
-    void checkApiHealth(controller.signal).then((online) => {
-      if (active) setApiStatus(online ? 'online' : 'waking');
-    });
-    return () => { active = false; window.clearTimeout(timeout); controller.abort(); };
-  }, []);
-
-  const statusText = apiStatus === 'online' ? 'TaskPilot API bağlı' : apiStatus === 'checking' ? 'Servis kontrol ediliyor' : 'Ücretsiz servis uyanıyor';
 
   return <div className="landing-page">
     <header className="landing-header">
       <div className="landing-container landing-header-inner">
-        <a className="landing-brand" href="#top" aria-label="TaskPilot ana sayfa"><span>T</span><strong>TaskPilot</strong></a>
+        <a className="landing-brand" href="#top" aria-label="TaskPilot ana sayfa"><img className="brand-mark-image" src="/brand-mark.png" alt="" width="28" height="28" loading="eager" decoding="async" /><strong>TaskPilot</strong></a>
         <nav className={menuOpen ? 'is-open' : ''} aria-label="Ana navigasyon">
-          <a href="#yuzeyler" onClick={() => setMenuOpen(false)}>Ürün</a><a href="#grafik" onClick={() => setMenuOpen(false)}>Bilgi grafiği</a><a href="#roller" onClick={() => setMenuOpen(false)}>Roller</a><a href="#fiyat" onClick={() => setMenuOpen(false)}>Fiyatlandırma</a>
+          <a href="#yuzeyler" onClick={() => setMenuOpen(false)}>Ürün</a><a href="#grafik" onClick={() => setMenuOpen(false)}>Bilgi grafiği</a><a href="#roller" onClick={() => setMenuOpen(false)}>Roller</a><a href="#sss" onClick={() => setMenuOpen(false)}>SSS</a>
         </nav>
         <div className="landing-header-actions">
           <button className="landing-icon-button" type="button" onClick={toggleTheme} aria-label={theme === 'dark' ? 'Açık temaya geç' : 'Koyu temaya geç'}>{theme === 'dark' ? <Sun /> : <Moon />}</button>
@@ -145,38 +144,35 @@ export function LandingPage() {
 
     <main>
       <section id="top" className="landing-hero landing-container">
-        <div className={`landing-live-badge is-${apiStatus}`} role="status" aria-live="polite"><span />{statusText} · kaynaklı Copilot hazır</div>
-        <h1>Görevleriniz ve bilginiz<br /><span>aynı grafikte yaşasın.</span></h1>
-        <p>TaskPilot; issue takibini, bağlantılı notları ve kaynak gösteren AI copilot’ı tek çalışma alanında birleştirir.</p>
-        <div className="landing-hero-actions"><Link className="landing-primary" to="/register">Ücretsiz başla <ArrowRight /></Link><a className="landing-secondary" href="#yuzeyler">Ürünü keşfet</a></div>
-        <code className="landing-hero-note">Kredi kartı yok · ücretsiz beta · gerçek backend bağlantısı</code>
-        <HeroProduct />
+        <h1 data-reveal="" style={{ transitionDelay: '70ms' }}>Görevleriniz ve bilginiz<br /><span>aynı grafikte yaşasın.</span></h1>
+        <p data-reveal="" style={{ transitionDelay: '140ms' }}>TaskPilot; issue takibini, bağlantılı notları ve kaynak gösteren AI copilot’ı tek çalışma alanında birleştirir.</p>
+        <div className="landing-hero-actions" data-reveal="" style={{ transitionDelay: '210ms' }}><Link className="landing-primary" to="/register">Ücretsiz başla <ArrowRight /></Link><a className="landing-secondary" href="#yuzeyler">Ürünü keşfet</a></div>
+        <code className="landing-hero-note" data-reveal="" style={{ transitionDelay: '260ms' }}>Kredi kartı yok · ücretsiz beta · gerçek backend bağlantısı</code>
+        <div data-reveal="" style={{ transitionDelay: '320ms' }}><HeroProduct /></div>
       </section>
 
       <section className="landing-stats landing-container" aria-label="TaskPilot öne çıkanlar">
-        {[['3 yüzey', 'Görev, bilgi ve AI aynı çalışma alanında'], ['PostgreSQL', 'Kalıcı ve ilişkisel proje verisi'], ['%100', 'Copilot yanıtlarında kaynak hedefi'], ['4 rol', 'Owner, Manager, Member ve Guest']].map(([value, label]) => <article key={value}><strong>{value}</strong><span>{label}</span></article>)}
+        {[['3 yüzey', 'Görev, bilgi ve AI aynı çalışma alanında'], ['PostgreSQL', 'Kalıcı ve ilişkisel proje verisi'], ['%100', 'Copilot yanıtlarında kaynak hedefi'], ['4 rol', 'Owner, Manager, Member ve Guest']].map(([value, label], index) => <article key={value} data-reveal="" style={{ transitionDelay: `${index * 70}ms` }}><strong>{value}</strong><span>{label}</span></article>)}
       </section>
 
       <section id="yuzeyler" className="landing-section landing-container">
-        <code className="landing-eyebrow">ÜÇ YÜZEY · TEK ZİHİN</code><h2>Araç değiştirmek, bağlamı kaybetmektir.</h2><p className="landing-lead">Görev, not ve yapay zekâ aynı veri modelini paylaşır. Proje bağlamı ekranlar arasında kaybolmaz.</p>
-        <div className="landing-tabs" role="tablist" aria-label="Ürün yüzeyleri">{(Object.keys(surfaces) as SurfaceId[]).map((id) => <button type="button" role="tab" aria-selected={surface === id} key={id} onClick={() => setSurface(id)}>{surfaces[id].label}</button>)}</div>
-        <div className="landing-surface-card"><div><h3>{surfaces[surface].title}</h3><p>{surfaces[surface].body}</p><ul>{surfaces[surface].bullets.map((bullet) => <li key={bullet}><ChevronRight />{bullet}</li>)}</ul></div><ProductPreview surface={surface} /></div>
+        <code className="landing-eyebrow" data-reveal="">ÜÇ YÜZEY · TEK ZİHİN</code><h2 data-reveal="">Araç değiştirmek, bağlamı kaybetmektir.</h2><p className="landing-lead" data-reveal="">Görev, not ve yapay zekâ aynı veri modelini paylaşır. Proje bağlamı ekranlar arasında kaybolmaz.</p>
+        <div className="landing-tabs" role="tablist" aria-label="Ürün yüzeyleri" data-reveal="">{(Object.keys(surfaces) as SurfaceId[]).map((id) => <button type="button" role="tab" aria-selected={surface === id} key={id} onClick={() => setSurface(id)}>{surfaces[id].label}</button>)}</div>
+        <div data-reveal=""><div className="landing-surface-card" key={surface}><div><h3>{surfaces[surface].title}</h3><p>{surfaces[surface].body}</p><ul>{surfaces[surface].bullets.map((bullet) => <li key={bullet}><ChevronRight />{bullet}</li>)}</ul></div><ProductPreview surface={surface} /></div></div>
       </section>
 
       <section id="grafik" className="landing-section landing-container landing-graph-section">
-        <div><code className="landing-eyebrow">BİLGİ GRAFİĞİ</code><h2>Bağlantıyı kurun,<br />bağlam kendiliğinden oluşsun.</h2><p className="landing-lead">Notlar, görevler ve kararlar aynı proje içinde bağlanır. Grafik görünümü hangi kararın hangi işi beslediğini bir bakışta gösterir.</p><ul className="landing-points"><li><i className="primary" /><span><strong>İki yönlü bağlantılar</strong> kararın kullanıldığı görev ve notları görünür kılar.</span></li><li><i className="ai" /><span><strong>Proje filtreleri</strong> büyük grafiği ilgili bağlama indirger.</span></li><li><i className="success" /><span><strong>Copilot bağlamı</strong> aynı ilişkileri semantik aramada kullanır.</span></li></ul></div>
-        <div className="landing-graph-card"><header><code>GRAF · PROJE BAĞLAMI</code><span><Network /> CANLI</span></header><svg viewBox="0 0 520 400" role="img" aria-label="Görev ve notlardan oluşan bilgi grafiği"><g className="edges"><line x1="260" y1="200" x2="128" y2="106" /><line x1="260" y1="200" x2="392" y2="128" /><line x1="260" y1="200" x2="150" y2="300" /><line x1="260" y1="200" x2="386" y2="296" /><line x1="128" y1="106" x2="212" y2="62" /><line x1="392" y1="128" x2="452" y2="212" /><line x1="150" y1="300" x2="248" y2="352" /><line x1="386" y1="296" x2="452" y2="212" /><line x1="128" y1="106" x2="70" y2="196" /><line x1="70" y1="196" x2="150" y2="300" /></g><g className="active-edges"><line x1="260" y1="200" x2="392" y2="128" /><line x1="260" y1="200" x2="150" y2="300" /></g><g className="nodes"><circle cx="260" cy="200" r="15" className="main" /><circle cx="260" cy="200" r="26" className="pulse" /><circle cx="128" cy="106" r="9" className="cyan" /><circle cx="392" cy="128" r="10" className="violet" /><circle cx="150" cy="300" r="8" className="green" /><circle cx="386" cy="296" r="9" className="yellow" /><circle cx="212" cy="62" r="5" /><circle cx="452" cy="212" r="6" /><circle cx="248" cy="352" r="6" /><circle cx="70" cy="196" r="5" /></g><g className="labels"><text x="260" y="236" textAnchor="middle">Sprint 24</text><text x="128" y="88" textAnchor="middle">Ödeme RFC</text><text x="392" y="110" textAnchor="middle">ATL-118</text><text x="150" y="322" textAnchor="middle">Mimari Konsey</text><text x="386" y="318" textAnchor="middle">Retry SLA</text></g></svg></div>
+        <div data-reveal=""><code className="landing-eyebrow">BİLGİ GRAFİĞİ</code><h2>Bağlantıyı kurun,<br />bağlam kendiliğinden oluşsun.</h2><p className="landing-lead">Notlar, görevler ve kararlar aynı proje içinde bağlanır. Grafik görünümü hangi kararın hangi işi beslediğini bir bakışta gösterir.</p><ul className="landing-points"><li><i className="primary" /><span><strong>İki yönlü bağlantılar</strong> kararın kullanıldığı görev ve notları görünür kılar.</span></li><li><i className="ai" /><span><strong>Proje filtreleri</strong> büyük grafiği ilgili bağlama indirger.</span></li><li><i className="success" /><span><strong>Copilot bağlamı</strong> aynı ilişkileri semantik aramada kullanır.</span></li></ul></div>
+        <div className="landing-graph-card" data-reveal="" style={{ transitionDelay: '90ms' }}><header><code>GRAF · PROJE BAĞLAMI</code><span><Network /> CANLI</span></header><svg viewBox="0 0 520 400" role="img" aria-label="Görev ve notlardan oluşan bilgi grafiği"><g className="edges"><line x1="260" y1="200" x2="128" y2="106" /><line x1="260" y1="200" x2="392" y2="128" /><line x1="260" y1="200" x2="150" y2="300" /><line x1="260" y1="200" x2="386" y2="296" /><line x1="128" y1="106" x2="212" y2="62" /><line x1="392" y1="128" x2="452" y2="212" /><line x1="150" y1="300" x2="248" y2="352" /><line x1="386" y1="296" x2="452" y2="212" /><line x1="128" y1="106" x2="70" y2="196" /><line x1="70" y1="196" x2="150" y2="300" /></g><g className="active-edges"><line x1="260" y1="200" x2="392" y2="128" /><line x1="260" y1="200" x2="150" y2="300" /></g><g className="nodes"><circle cx="260" cy="200" r="15" className="main" /><circle cx="260" cy="200" r="26" className="pulse" /><circle cx="128" cy="106" r="9" className="cyan" /><circle cx="392" cy="128" r="10" className="violet" /><circle cx="150" cy="300" r="8" className="green" /><circle cx="386" cy="296" r="9" className="yellow" /><circle cx="212" cy="62" r="5" /><circle cx="452" cy="212" r="6" /><circle cx="248" cy="352" r="6" /><circle cx="70" cy="196" r="5" /></g><g className="labels"><text x="260" y="236" textAnchor="middle">Sprint 24</text><text x="128" y="88" textAnchor="middle">Ödeme RFC</text><text x="392" y="110" textAnchor="middle">ATL-118</text><text x="150" y="322" textAnchor="middle">Mimari Konsey</text><text x="386" y="318" textAnchor="middle">Retry SLA</text></g></svg></div>
       </section>
 
-      <section id="roller" className="landing-section landing-container"><code className="landing-eyebrow">ROLLER VE İZİNLER</code><h2>Yetkisi olmayan düğmeyi görmez.</h2><p className="landing-lead">Dört rol ve backend tarafından doğrulanan izin modeli. Arayüz, kullanıcının gerçek çalışma alanı ve proje rolüne göre şekillenir.</p><div className="landing-role-grid">{roles.map((role) => <article key={role.name}><header><i style={{ background: role.color }} /><h3>{role.name}</h3></header><p>{role.description}</p><ul>{role.permissions.map((permission) => <li key={permission}><Check />{permission}</li>)}</ul></article>)}</div></section>
+      <section id="roller" className="landing-section landing-container"><code className="landing-eyebrow" data-reveal="">ROLLER VE İZİNLER</code><h2 data-reveal="">Yetkisi olmayan düğmeyi görmez.</h2><p className="landing-lead" data-reveal="">Dört rol ve backend tarafından doğrulanan izin modeli. Arayüz, kullanıcının gerçek çalışma alanı ve proje rolüne göre şekillenir.</p><div className="landing-role-grid">{roles.map((role, index) => <article key={role.name} data-reveal="" style={{ transitionDelay: `${index * 70}ms` }}><header><i style={{ background: role.color }} /><h3>{role.name}</h3></header><p>{role.description}</p><ul>{role.permissions.map((permission) => <li key={permission}><Check />{permission}</li>)}</ul></article>)}</div></section>
 
-      <section id="fiyat" className="landing-section landing-container"><div className="landing-pricing-header"><div><code className="landing-eyebrow">FİYATLANDIRMA</code><h2>Ücretsiz başlayın, ekipçe büyütün.</h2></div><div className="landing-billing-toggle" role="group" aria-label="Fiyat periyodu"><button type="button" className={!yearly ? 'active' : ''} onClick={() => setYearly(false)}>Aylık</button><button type="button" className={yearly ? 'active' : ''} onClick={() => setYearly(true)}>Yıllık <small>−20%</small></button></div></div><div className="landing-plan-grid">{plans.map((plan) => <article className={plan.featured ? 'featured' : ''} key={plan.name}>{plan.featured ? <code className="landing-plan-badge">ERKEN ERİŞİM</code> : null}<h3>{plan.name}</h3><div className="landing-plan-price"><strong>{yearly ? plan.yearly : plan.monthly}</strong><span>{plan.unit}</span></div><p>{plan.description}</p><ul>{plan.items.map((item) => <li key={item}><Check />{item}</li>)}</ul><Link className={plan.featured ? 'landing-primary' : 'landing-secondary'} to="/register">{plan.cta}</Link></article>)}</div><p className="landing-pricing-note">Ücretli paketler yol haritasındadır; mevcut sürüm ücretsiz beta olarak kullanılabilir.</p></section>
+      <section id="sss" className="landing-section landing-faq"><code className="landing-eyebrow" data-reveal="">SIK SORULANLAR</code><h2 data-reveal="">Merak edilenler</h2><div data-reveal="">{faqs.map((faq, index) => <article key={faq.question}><button type="button" onClick={() => setOpenFaq((current) => current === index ? -1 : index)} aria-expanded={openFaq === index}><span>{faq.question}</span><b aria-hidden="true">+</b></button><div className="landing-faq-answer" data-open={openFaq === index ? 'true' : undefined}><p>{faq.answer}</p></div></article>)}</div></section>
 
-      <section className="landing-section landing-faq"><code className="landing-eyebrow">SIK SORULANLAR</code><h2>Merak edilenler</h2><div>{faqs.map((faq, index) => <article key={faq.question}><button type="button" onClick={() => setOpenFaq((current) => current === index ? -1 : index)} aria-expanded={openFaq === index}><span>{faq.question}</span><b>{openFaq === index ? '−' : '+'}</b></button>{openFaq === index ? <p>{faq.answer}</p> : null}</article>)}</div></section>
-
-      <section className="landing-cta landing-container"><Sparkles /><h2>Ekibinizin belleğini bir daha kaybetmeyin.</h2><p>Çalışma alanınızı birkaç dakikada kurun; görev, bilgi ve Copilot bağlamını aynı yerde tutun.</p><div><Link className="landing-primary" to="/register">Ücretsiz başla <ArrowRight /></Link><Link className="landing-secondary" to="/login">Hesabım var</Link></div></section>
+      <section className="landing-cta landing-container" data-reveal=""><Sparkles /><h2>Ekibinizin belleğini bir daha kaybetmeyin.</h2><p>Çalışma alanınızı birkaç dakikada kurun; görev, bilgi ve Copilot bağlamını aynı yerde tutun.</p><div><Link className="landing-primary" to="/register">Ücretsiz başla <ArrowRight /></Link><Link className="landing-secondary" to="/login">Hesabım var</Link></div></section>
     </main>
 
-    <footer className="landing-footer landing-container"><div><a className="landing-brand" href="#top"><span>T</span><strong>TaskPilot</strong></a><p>Görev, bilgi ve yapay zekâ<br />tek çalışma alanında.</p></div><nav aria-label="Alt navigasyon"><a href="#yuzeyler">Ürün</a><a href="#grafik">Bilgi grafiği</a><a href="#roller">Roller</a><Link to="/login">Giriş</Link><Link to="/register">Kayıt</Link></nav><small>© 2026 TaskPilot · İstanbul</small></footer>
+    <footer className="landing-footer landing-container"><div><a className="landing-brand" href="#top"><img className="brand-mark-image" src="/brand-mark.png" alt="" width="28" height="28" loading="eager" decoding="async" /><strong>TaskPilot</strong></a><p>Görev, bilgi ve yapay zekâ<br />tek çalışma alanında.</p></div><nav aria-label="Alt navigasyon"><a href="#yuzeyler">Ürün</a><a href="#grafik">Bilgi grafiği</a><a href="#roller">Roller</a><Link to="/login">Giriş</Link><Link to="/register">Kayıt</Link></nav><small>© 2026 TaskPilot · İstanbul</small></footer>
   </div>;
 }
