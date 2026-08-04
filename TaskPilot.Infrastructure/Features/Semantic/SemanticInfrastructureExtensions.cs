@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -13,6 +14,13 @@ public sealed class SemanticEmbeddingOptions
     public string Endpoint { get; set; } = "http://localhost:11434";
     public string Model { get; set; } = "nomic-embed-text";
     public string? ApiKey { get; set; }
+
+    /// <summary>
+    /// Requested embedding width for providers that support truncation (OpenAI text-embedding-3-*).
+    /// Must match the pgvector column width, currently vector(768). Null sends no dimensions field.
+    /// </summary>
+    public int? Dimensions { get; set; }
+
     public int TimeoutSeconds { get; set; } = 30;
     public int MaxInputCharacters { get; set; } = 12_000;
     public int DuplicateTopK { get; set; } = 3;
@@ -39,6 +47,9 @@ public static class SemanticInfrastructureExtensions
                            options.Provider.Equals("OpenAICompatible", StringComparison.OrdinalIgnoreCase),
                 "Semantic:Provider must be Ollama or OpenAICompatible.")
             .Validate(options => Uri.TryCreate(options.Endpoint, UriKind.Absolute, out _), "Semantic:Endpoint must be an absolute URI.")
+            .Validate(
+                options => options.Dimensions is null or (> 0 and <= 4096),
+                "Semantic:Dimensions must be between 1 and 4096 when set.")
             .Validate(options => !string.IsNullOrWhiteSpace(options.Model), "Semantic:Model must be configured.")
             .Validate(
                 options => options.Provider.Equals("Ollama", StringComparison.OrdinalIgnoreCase) ||
@@ -88,14 +99,30 @@ internal sealed class OpenAiCompatibleEmbeddingGenerator(
         timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(settings.TimeoutSeconds, 1, 120)));
         using var response = await client.PostAsJsonAsync(
             "embeddings",
-            new { model = settings.Model, input },
+            new OpenAiEmbeddingRequest { Model = settings.Model, Input = input, Dimensions = settings.Dimensions },
             timeout.Token);
         response.EnsureSuccessStatusCode();
         var payload = await response.Content.ReadFromJsonAsync<OpenAiEmbeddingResponse>(cancellationToken: timeout.Token);
         var vector = payload?.Data?.FirstOrDefault()?.Embedding;
         if (vector is null || vector.Length == 0)
             throw new InvalidOperationException("Embedding provider returned an empty vector.");
+        if (settings.Dimensions is > 0 && vector.Length != settings.Dimensions)
+        {
+            // Fail loudly here rather than letting pgvector reject the insert with an opaque error.
+            throw new InvalidOperationException(
+                $"Embedding provider returned {vector.Length} dimensions but Semantic:Dimensions is {settings.Dimensions}.");
+        }
         return (vector, settings.Model);
+    }
+
+    private sealed class OpenAiEmbeddingRequest
+    {
+        [JsonPropertyName("model")] public required string Model { get; init; }
+        [JsonPropertyName("input")] public required string Input { get; init; }
+
+        [JsonPropertyName("dimensions")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int? Dimensions { get; init; }
     }
 
     private sealed record OpenAiEmbeddingResponse(OpenAiEmbeddingData[] Data);

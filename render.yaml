@@ -45,17 +45,20 @@ services:
       - key: Features__Interop__A2aEnabled
         value: "false"
       - key: Ai__Provider
-        value: OpenAICompatible
+        value: LLMAPI
       - key: Ai__Endpoint
-        value: https://api.cloudflare.com/client/v4/accounts/485e07cfa134b36e9171c3f6210db67e/ai/v1
+        value: https://api.llmapi.ai/v1
       - key: Ai__Model
-        value: "@cf/openai/gpt-oss-20b"
+        value: llama-3.1-8b-instruct
       - key: Ai__ApiKey
         sync: false
       - key: Semantic__Provider
         value: OpenAICompatible
       - key: Semantic__Model
-        value: "@cf/baai/bge-base-en-v1.5"
+        value: text-embedding-3-small
+      # Must match the pgvector column width; the Embedding column is vector(768).
+      - key: Semantic__Dimensions
+        value: "768"
       - key: Semantic__BackfillEnabled
         value: "false"
 
