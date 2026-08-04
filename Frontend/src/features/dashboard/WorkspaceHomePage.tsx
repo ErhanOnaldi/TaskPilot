@@ -20,7 +20,7 @@ export function WorkspaceHomePage() {
   const openTasks = (tasks.data?.items ?? []).filter((task) => task.assignedUserId === user.id && !['Done', 'Cancelled'].includes(task.status));
   return (
     <div className="page page--home">
-      <PageHeader eyebrow="PAZAR, 2 AĞUSTOS 2026 · EUROPE/ISTANBUL" title={`Tekrar hoş geldiniz, ${user.email.split('@')[0] || 'ekip'}.`} description="Projelerinizdeki riskleri ve yaklaşan işleri tek bakışta görün." />
+      <PageHeader eyebrow={formatToday()} title={`Tekrar hoş geldiniz, ${user.email.split('@')[0] || 'ekip'}.`} description="Projelerinizdeki riskleri ve yaklaşan işleri tek bakışta görün." />
       <section className="quick-actions" aria-label="Hızlı aksiyonlar">
         <Link to={`/w/${wid}/projects`}><FolderKanban /><span><strong>Projeleri aç</strong><small>Aktif, tamamlanan ve arşiv</small></span><ArrowRight /></Link>
         {firstProject ? <Link to={`/w/${wid}/projects/${firstProject.id}/tasks`}><Plus /><span><strong>Görevleri yönet</strong><small>Liste ve Kanban görünümü</small></span><ArrowRight /></Link> : null}
@@ -55,3 +55,9 @@ export function WorkspaceHomePage() {
 }
 
 function ListIcon() { return <span className="mono">⌘K</span>; }
+
+function formatToday() {
+  return new Intl.DateTimeFormat('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    .format(new Date())
+    .toLocaleUpperCase('tr-TR');
+}

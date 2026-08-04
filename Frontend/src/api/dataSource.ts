@@ -17,6 +17,7 @@ const page = <T,>(items: T[]): PagedResponse<T> => ({
 });
 
 export const queryKeys = {
+  workspaces: ['workspaces'] as const,
   workspace: (workspaceId: number) => ['workspace', workspaceId] as const,
   projects: (workspaceId: number) => ['projects', workspaceId] as const,
   tasks: (projectId: number) => ['tasks', projectId] as const,
@@ -33,6 +34,21 @@ export function useWorkspace(workspaceId: number) {
   return useQuery({
     queryKey: queryKeys.workspace(workspaceId),
     queryFn: () => (isDemoMode ? Promise.resolve(demoWorkspace) : workspaceApi.get(workspaceId)),
+  });
+}
+
+export function useWorkspaces() {
+  return useQuery({
+    queryKey: queryKeys.workspaces,
+    queryFn: () => (isDemoMode ? Promise.resolve(page([demoWorkspace])) : workspaceApi.list()),
+  });
+}
+
+export function useCreateWorkspace() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => workspaceApi.create(name),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaces }),
   });
 }
 

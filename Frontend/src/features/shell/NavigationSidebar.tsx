@@ -1,8 +1,9 @@
-import { Bell, Bot, ChevronDown, CircleUserRound, FolderKanban, GitFork, Home, ListTodo, Settings, UsersRound, X } from 'lucide-react';
+import { Bell, Bot, CircleUserRound, FolderKanban, GitFork, Home, ListTodo, Settings, UsersRound, X } from 'lucide-react';
 import { NavLink, useParams } from 'react-router-dom';
-import { useNotifications, useProjects, useWorkspace } from '../../api/dataSource';
+import { useNotifications, useProjects } from '../../api/dataSource';
 import { MemberAvatar } from '../../components/ui/Avatar';
 import { useAppContext } from '../../app/AppProviders';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
 const navClass = ({ isActive }: { isActive: boolean }) => `nav-link${isActive ? ' nav-link--active' : ''}`;
 
@@ -10,16 +11,13 @@ export function NavigationSidebar({ open, onClose }: { open: boolean; onClose: (
   const { workspaceId = '1', projectId } = useParams();
   const wid = Number(workspaceId);
   const { user } = useAppContext();
-  const workspace = useWorkspace(wid).data;
   const projects = useProjects(wid).data?.items ?? [];
   const unread = useNotifications().data?.items.filter((item) => !item.isRead).length ?? 0;
 
   return (
     <aside className={`navigation-sidebar${open ? ' navigation-sidebar--open' : ''}`} aria-label="Ana navigasyon">
-      <header className="sidebar-workspace">
-        <div className="workspace-avatar">{workspace?.name.slice(0, 2).toUpperCase() ?? 'TP'}</div>
-        <div><strong>{workspace?.name ?? 'Workspace'}</strong><span>{user.workspaceRole}</span></div>
-        <ChevronDown aria-hidden="true" />
+      <header className="sidebar-header">
+        <WorkspaceSwitcher workspaceId={wid} onNavigate={onClose} />
         <button className="icon-button sidebar-close" onClick={onClose} aria-label="Menüyü kapat"><X /></button>
       </header>
       <nav className="sidebar-nav">
@@ -50,7 +48,7 @@ export function NavigationSidebar({ open, onClose }: { open: boolean; onClose: (
         {user.workspaceRole !== 'Guest' ? <NavLink className={navClass} to={`/w/${workspaceId}/members`} onClick={onClose}><UsersRound />Üyeler</NavLink> : null}
         {['Owner', 'Manager'].includes(user.workspaceRole) ? <NavLink className={navClass} to={`/w/${workspaceId}/settings`} onClick={onClose}><Settings />Ayarlar</NavLink> : null}
       </nav>
-      <footer className="sidebar-profile"><MemberAvatar name={user.email || 'Kullanıcı'} /><div><strong>{user.email.split('@')[0] || 'Kullanıcı'}</strong><span>{user.projectRole}</span></div><CircleUserRound /></footer>
+      <footer className="sidebar-profile"><MemberAvatar name={user.email || 'Kullanıcı'} /><div><strong>{user.email.split('@')[0] || 'Kullanıcı'}</strong><span title={user.email}>{user.email}</span></div><CircleUserRound /></footer>
     </aside>
   );
 }

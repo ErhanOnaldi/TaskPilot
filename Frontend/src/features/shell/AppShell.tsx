@@ -4,9 +4,8 @@ import { Navigate, NavLink, Outlet, useParams } from 'react-router-dom';
 import { CommandPalette } from '../../components/CommandPalette';
 import { NavigationSidebar } from './NavigationSidebar';
 import { TopToolbar } from './TopToolbar';
-import { WorkspaceRail } from './WorkspaceRail';
 import { useAppContext } from '../../app/AppProviders';
-import { isDemoMode, useMembers, useProjectMembers } from '../../api/dataSource';
+import { isDemoMode, useMembers, useProjectMembers, useProjects } from '../../api/dataSource';
 import { hasSession, subscribeSession } from '../../api/apiClient';
 
 export function AppShell() {
@@ -17,10 +16,15 @@ export function AppShell() {
 function AppShellContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const { workspaceId = '1', projectId = '1' } = useParams();
+  const { workspaceId = '1', projectId } = useParams();
   const { user, setUserRoles } = useAppContext();
   const members = useMembers(Number(workspaceId));
-  const projectMembers = useProjectMembers(Number(projectId));
+  // Without a project in the route there is nothing to look up; querying id 1 would 404 for most users.
+  const projectMembers = useProjectMembers(Number(projectId ?? 0));
+  const projects = useProjects(Number(workspaceId));
+  const activeProject = projects.data?.items.find((project) => String(project.id) === projectId)
+    ?? projects.data?.items.find((project) => project.status === 'Active')
+    ?? projects.data?.items[0];
   useEffect(() => {
     if (!user.id) return;
     const workspaceRole = members.data?.items.find((member) => member.userId === user.id)?.role ?? 'Guest';
@@ -40,7 +44,6 @@ function AppShellContent() {
 
   return (
     <div className="app-shell">
-      <WorkspaceRail />
       <NavigationSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       {sidebarOpen ? <button className="sidebar-scrim" onClick={() => setSidebarOpen(false)} aria-label="Menüyü kapat" /> : null}
       <div className="app-surface">
@@ -49,9 +52,9 @@ function AppShellContent() {
       </div>
       <nav className="bottom-nav" aria-label="Mobil navigasyon">
         <NavLink end to={`/w/${workspaceId}`}><Home /><span>Ana Sayfa</span></NavLink>
-        <NavLink to={`/w/${workspaceId}/projects/${projectId}/tasks`}><ListTodo /><span>Görevler</span></NavLink>
+        <NavLink to={activeProject ? `/w/${workspaceId}/projects/${activeProject.id}/tasks` : `/w/${workspaceId}/my-tasks`}><ListTodo /><span>Görevler</span></NavLink>
         <NavLink to={`/w/${workspaceId}/projects`}><FolderKanban /><span>Projeler</span></NavLink>
-        <NavLink to={`/w/${workspaceId}/projects/${projectId}/copilot`}><Bot /><span>AI</span></NavLink>
+        {activeProject ? <NavLink to={`/w/${workspaceId}/projects/${activeProject.id}/copilot`}><Bot /><span>AI</span></NavLink> : null}
         <NavLink to={`/w/${workspaceId}/notifications`}><Bell /><span>Bildirimler</span></NavLink>
       </nav>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
